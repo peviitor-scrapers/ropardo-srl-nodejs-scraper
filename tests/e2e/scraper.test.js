@@ -35,15 +35,19 @@ describe('E2E: Full Scraping Pipeline', () => {
     let $;
 
     beforeAll(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
       const res = await fetch(ROPARDO_URL, {
         headers: {
           'User-Agent': 'job_seeker_ro_spider',
           'Accept': 'text/html'
-        }
+        },
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       html = await res.text();
       $ = cheerio.load(html);
-    }, 15000);
+    }, 30000);
 
     it('should respond with valid HTML', () => {
       expect(html.toLowerCase()).toContain('<!doctype html>');
