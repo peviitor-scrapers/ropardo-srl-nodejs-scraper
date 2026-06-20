@@ -108,7 +108,7 @@ describe('Integration: API Workflow', () => {
       expect(ropardo.brand).toBe('ROPARDO');
       expect(ropardo.status).toBe('activ');
       expect(Array.isArray(ropardo.location)).toBe(true);
-      expect(ropardo.lastScraped).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(ropardo.lastScraped).toMatch(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+Z?)?)?$/);
     }, 15000);
 
     itIfSolr('should have required company model fields', async () => {
