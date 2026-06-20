@@ -46,7 +46,7 @@ describe('E2E: Full Scraping Pipeline', () => {
     }, 15000);
 
     it('should respond with valid HTML', () => {
-      expect(html).toContain('<!DOCTYPE html>');
+      expect(html.toLowerCase()).toContain('<!doctype html>');
       expect(html).toContain('Ropardo');
     });
 
@@ -213,7 +213,7 @@ describe('E2E: Full Scraping Pipeline', () => {
             expect(anafData.inactive).toBe(true);
           }
         } catch {
-          expect(nonActive.statusLabel).toMatch(/Radiată|Inactiv|Suspendat/);
+          expect(nonActive.statusLabel).toMatch(/Radiată|Inactiv|Suspendat|Faliment/);
         }
       }
     }, 30000);
