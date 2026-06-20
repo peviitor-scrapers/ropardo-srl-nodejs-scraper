@@ -121,7 +121,7 @@ export async function upsertCompany(companyDoc) {
 
 /**
  * Queries company data from Solr company core
- * @param {string} companyQuery - Solr query string (e.g., "company:EPAM*" or "id:33159615")
+ * @param {string} companyQuery - Solr query string (e.g., "company:ROPARDO*" or "id:5415866")
  * @returns {Promise<Object>} - Solr response with company docs
  */
 export async function queryCompanySOLR(companyQuery) {
@@ -376,7 +376,7 @@ async function runExtract(cif) {
 async function runCompanyQuery(args) {
   console.log("=== Query Company in SOLR ===\n");
   
-  const query = args[1] || "company:EPAM*";
+  const query = args[1] || "company:ROPARDO*";
   console.log(`Query: ${query}`);
   
   const result = await queryCompanySOLR(query);

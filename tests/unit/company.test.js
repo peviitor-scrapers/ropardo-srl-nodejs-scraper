@@ -49,10 +49,10 @@ function solrResponse(numFound, docs) {
   };
 }
 
-const EPAM_ANAF_RECORD = {
-  cui: 33159615,
-  name: 'EPAM SYSTEMS INTERNATIONAL SRL',
-  address: 'IANCU DE HUNEDOARA, 48, Bucureşti Sectorul 1, Bucureşti',
+const ROPARDO_ANAF_RECORD = {
+  cui: 5415866,
+  name: 'ROPARDO SRL',
+      address: 'Str. RECONSTRUCTIEI, 2 A, Municipiul Sibiu, Sibiu',
   caenCode: '6220',
   inactive: false,
   vatRegistered: true,
@@ -83,16 +83,16 @@ describe('company.js', () => {
   });
 
   describe('getCompanyData (no cache)', () => {
-    it('should fetch EPAM via direct CIF lookup and return company data', async () => {
-      mockFetch.mockResolvedValueOnce(anafCompanyResponse(EPAM_ANAF_RECORD));
+    it('should fetch ROPARDO via direct CIF lookup and return company data', async () => {
+      mockFetch.mockResolvedValueOnce(anafCompanyResponse(ROPARDO_ANAF_RECORD));
 
       const result = await company.getCompanyData();
 
-      expect(result).toHaveProperty('company', 'EPAM SYSTEMS INTERNATIONAL SRL');
-      expect(result).toHaveProperty('cif', '33159615');
+      expect(result).toHaveProperty('company', 'ROPARDO SRL');
+      expect(result).toHaveProperty('cif', '5415866');
       expect(result).toHaveProperty('active', true);
       expect(result).toHaveProperty('anafData');
-      expect(result.anafData.name).toBe('EPAM SYSTEMS INTERNATIONAL SRL');
+      expect(result.anafData.name).toBe('ROPARDO SRL');
     });
 
     it('should throw when ANAF returns no data', async () => {
@@ -102,7 +102,7 @@ describe('company.js', () => {
     });
 
     it('should throw when ANAF returns no company name', async () => {
-      mockFetch.mockResolvedValueOnce(anafCompanyResponse({ cui: 33159615, name: null }));
+      mockFetch.mockResolvedValueOnce(anafCompanyResponse({ cui: 5415866, name: null }));
 
       await expect(company.getCompanyData()).rejects.toThrow('ANAF returned no company name');
     });
@@ -111,10 +111,12 @@ describe('company.js', () => {
   describe('getCompanyData (with cache)', () => {
     const cachedData = {
       validatedAt: new Date().toISOString(),
-      anaf: EPAM_ANAF_RECORD,
+      anaf: ROPARDO_ANAF_RECORD,
+      company: 'ROPARDO SRL',
+      cif: '5415866',
       summary: {
-        company: 'EPAM SYSTEMS INTERNATIONAL SRL',
-        cif: '33159615',
+        company: 'ROPARDO SRL',
+        cif: '5415866',
         active: true
       }
     };
@@ -126,8 +128,8 @@ describe('company.js', () => {
     it('should use cached company data when available', async () => {
       const result = await company.getCompanyData();
 
-      expect(result.company).toBe('EPAM SYSTEMS INTERNATIONAL SRL');
-      expect(result.cif).toBe('33159615');
+      expect(result.company).toBe('ROPARDO SRL');
+      expect(result.cif).toBe('5415866');
       expect(result.active).toBe(true);
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -140,26 +142,26 @@ describe('company.js', () => {
 
     it('should return company data with status active', async () => {
       mockFetch
-        .mockResolvedValueOnce(anafCompanyResponse(EPAM_ANAF_RECORD))
+        .mockResolvedValueOnce(anafCompanyResponse(ROPARDO_ANAF_RECORD))
         .mockResolvedValueOnce(solrResponse(5, [
           { url: 'https://test.com/1', title: 'Job 1' },
           { url: 'https://test.com/2', title: 'Job 2' }
         ]))
-        .mockResolvedValueOnce(peviitorResponse([{ company: 'EPAM SYSTEMS INTERNATIONAL SRL' }]));
+        .mockResolvedValueOnce(peviitorResponse([{ company: 'ROPARDO SRL' }]));
 
       const result = await company.validateAndGetCompany();
 
       expect(result).toHaveProperty('status', 'active');
-      expect(result).toHaveProperty('company', 'EPAM SYSTEMS INTERNATIONAL SRL');
-      expect(result).toHaveProperty('cif', '33159615');
+      expect(result).toHaveProperty('company', 'ROPARDO SRL');
+      expect(result).toHaveProperty('cif', '5415866');
       expect(result).toHaveProperty('existingJobsCount');
       expect(typeof result.existingJobsCount).toBe('number');
     });
 
-    // Epam e activă — testul inactive se rulează doar dacă firma e inactivă
-    if (EPAM_ANAF_RECORD.inactive) {
+    // ROPARDO e activă — testul inactive se rulează doar dacă firma e inactivă
+    if (ROPARDO_ANAF_RECORD.inactive) {
       it('should return inactive status when company is inactive', async () => {
-        const inactiveRecord = { ...EPAM_ANAF_RECORD, inactive: true };
+        const inactiveRecord = { ...ROPARDO_ANAF_RECORD, inactive: true };
 
         mockFetch
           .mockResolvedValueOnce(anafCompanyResponse(inactiveRecord))

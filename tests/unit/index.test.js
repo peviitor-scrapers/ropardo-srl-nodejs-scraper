@@ -11,18 +11,18 @@ describe('index.js Component Tests', () => {
     it('should filter locations to only Romanian cities', () => {
       const payload = {
         jobs: [
-          { url: 'https://test.com/1', title: 'Job 1', location: ['România'] },
-          { url: 'https://test.com/2', title: 'Job 2', location: ['Bucharest'] },
-          { url: 'https://test.com/3', title: 'Job 3', location: ['Bulgaria'] },
-          { url: 'https://test.com/4', title: 'Job 4', location: ['Cluj-Napoca'] },
-          { url: 'https://test.com/5', title: 'Job 5', location: [] }
+          { url: 'https://jobs.ropardo.ro/job/1', title: 'Job 1', location: ['România'] },
+          { url: 'https://jobs.ropardo.ro/job/2', title: 'Job 2', location: ['Sibiu'] },
+          { url: 'https://jobs.ropardo.ro/job/3', title: 'Job 3', location: ['Bulgaria'] },
+          { url: 'https://jobs.ropardo.ro/job/4', title: 'Job 4', location: ['Cluj-Napoca'] },
+          { url: 'https://jobs.ropardo.ro/job/5', title: 'Job 5', location: [] }
         ]
       };
 
       const result = index.transformJobsForSOLR(payload);
 
       expect(result.jobs[0].location).toEqual(['România']);
-      expect(result.jobs[1].location).toEqual(['Bucharest']);
+      expect(result.jobs[1].location).toEqual(['Sibiu']);
       expect(result.jobs[2].location).toEqual(['România']);
       expect(result.jobs[3].location).toEqual(['Cluj-Napoca']);
       expect(result.jobs[4].location).toEqual(['România']);
@@ -30,26 +30,26 @@ describe('index.js Component Tests', () => {
 
     it('should keep company uppercase', () => {
       const payload = {
-        source: 'epam.com',
-        company: 'epam systems international srl',
-        cif: '33159615',
+        source: 'ropardo.ro',
+        company: 'ropardo srl',
+        cif: '5415866',
         jobs: [
-          { url: 'https://test.com/1', title: 'Job 1', company: 'epam systems', cif: '33159615' }
+          { url: 'https://jobs.ropardo.ro/job/1', title: 'Job 1', company: 'ropardo srl', cif: '5415866' }
         ]
       };
 
       const result = index.transformJobsForSOLR(payload);
 
-      expect(result.company).toBe('EPAM SYSTEMS INTERNATIONAL SRL');
+      expect(result.company).toBe('ROPARDO SRL');
     });
 
     it('should normalize workmode values', () => {
       const payload = {
         jobs: [
-          { url: 'https://test.com/1', title: 'Job 1', workmode: 'Remote' },
-          { url: 'https://test.com/2', title: 'Job 2', workmode: 'ON-SITE' },
-          { url: 'https://test.com/3', title: 'Job 3', workmode: 'Hybrid' },
-          { url: 'https://test.com/4', title: 'Job 4', workmode: 'hybrid' }
+          { url: 'https://jobs.ropardo.ro/job/1', title: 'Job 1', workmode: 'Remote' },
+          { url: 'https://jobs.ropardo.ro/job/2', title: 'Job 2', workmode: 'ON-SITE' },
+          { url: 'https://jobs.ropardo.ro/job/3', title: 'Job 3', workmode: 'Hybrid' },
+          { url: 'https://jobs.ropardo.ro/job/4', title: 'Job 4', workmode: 'hybrid' }
         ]
       };
 
@@ -70,15 +70,15 @@ describe('index.js Component Tests', () => {
   describe('mapToJobModel', () => {
     it('should map raw job to job model format', () => {
       const rawJob = {
-        url: 'https://careers.epam.com/job/123',
-        title: 'Senior Developer',
-        location: ['Bucharest'],
-        tags: ['Java', 'Spring'],
-        workmode: 'hybrid'
+        url: 'https://jobs.ropardo.ro/job/senior-java-developer/',
+        title: 'Senior Java Developer',
+        location: ['Sibiu'],
+        tags: ['java', 'spring boot'],
+        workmode: 'remote'
       };
 
-      const COMPANY_NAME = 'EPAM SYSTEMS INTERNATIONAL SRL';
-      const COMPANY_CIF = '33159615';
+      const COMPANY_NAME = 'ROPARDO SRL';
+      const COMPANY_CIF = '5415866';
 
       const result = index.mapToJobModel(rawJob, COMPANY_CIF, COMPANY_NAME);
 
@@ -95,11 +95,11 @@ describe('index.js Component Tests', () => {
 
     it('should remove undefined fields', () => {
       const rawJob = {
-        url: 'https://test.com/1',
+        url: 'https://jobs.ropardo.ro/job/test/',
         title: 'Job 1'
       };
 
-      const result = index.mapToJobModel(rawJob, '33159615');
+      const result = index.mapToJobModel(rawJob, '5415866');
 
       expect(result.location).toBeUndefined();
       expect(result.tags).toBeUndefined();
@@ -107,114 +107,82 @@ describe('index.js Component Tests', () => {
     });
 
     it('should handle missing title', () => {
-      const rawJob = { url: 'https://test.com/1' };
+      const rawJob = { url: 'https://jobs.ropardo.ro/job/test/' };
 
-      const result = index.mapToJobModel(rawJob, '33159615');
+      const result = index.mapToJobModel(rawJob, '5415866');
 
       expect(result.title).toBeUndefined();
-      expect(result.url).toBe('https://test.com/1');
+      expect(result.url).toBe('https://jobs.ropardo.ro/job/test/');
     });
   });
 
-  describe('parseApiJobs', () => {
-    it('should parse EPAM API response format', () => {
-      const apiData = {
-        data: {
-          total: 100,
-          jobs: [
-            {
-              uid: '123',
-              name: 'Senior Developer',
-              city: [{ name: 'Bucharest' }],
-              country: [{ name: 'Romania' }],
-              vacancy_type: 'Hybrid',
-              skills: ['Java', 'Spring']
-            }
-          ]
-        }
-      };
+  describe('parseJobsHTML', () => {
+    it('should parse job listings from ROPARDO HTML', () => {
+      const html = `<div class="jobs-wrapper col-lg-8">
+        <div class="listing">
+          <div class="list-item">
+            <div class="details">
+              <h4>Senior Java Developer</h4>
+              <div class="meta-info">
+                <div class="meta meta-location"><i class="fa fa-map-marker"></i>Sibiu</div>
+                <div class="meta meta-shedule-duration"><i class="fa fa-calendar"></i>Full-time | Remote</div>
+              </div>
+              <p><strong>Tech skills:</strong>&nbsp;Java 8+, Spring Boot</p>
+            </div>
+            <a class="button job-details" href="https://jobs.ropardo.ro/job/senior-java-developer/">See job</a>
+          </div>
+          <div class="list-item">
+            <div class="details">
+              <h4>Junior BI Developer</h4>
+              <div class="meta-info">
+                <div class="meta meta-location"><i class="fa fa-map-marker"></i>Sibiu, România</div>
+                <div class="meta meta-shedule-duration"><i class="fa fa-calendar"></i>Full-time/ part time/on site</div>
+              </div>
+              <p><strong>Tech skills:</strong>&nbsp;SQL, NoSQL</p>
+            </div>
+            <a class="button job-details" href="https://jobs.ropardo.ro/job/junior-bi-developer/">See job</a>
+          </div>
+        </div>
+      </div>`;
 
-      const result = index.parseApiJobs(apiData);
+      const result = index.parseJobsHTML(html);
 
-      expect(result.jobs).toHaveLength(1);
-      expect(result.jobs[0].title).toBe('Senior Developer');
-      expect(result.jobs[0].location).toEqual(['Bucharest']);
-      expect(result.jobs[0].workmode).toBe('hybrid');
+      expect(result).toHaveLength(2);
+      expect(result[0].title).toBe('Senior Java Developer');
+      expect(result[0].location).toEqual(['Sibiu']);
+      expect(result[0].workmode).toBe('remote');
+      expect(result[0].tags).toEqual(['java 8+', 'spring boot']);
+      expect(result[0].url).toBe('https://jobs.ropardo.ro/job/senior-java-developer/');
+
+      expect(result[1].title).toBe('Junior BI Developer');
+      expect(result[1].location).toEqual(['Sibiu']);
+      expect(result[1].workmode).toBe('hybrid');
+      expect(result[1].tags).toEqual(['sql', 'nosql']);
     });
 
-    it('should handle empty job list', () => {
-      const apiData = { data: { total: 0, jobs: [] } };
-
-      const result = index.parseApiJobs(apiData);
-
-      expect(result.jobs).toEqual([]);
+    it('should handle empty HTML', () => {
+      const result = index.parseJobsHTML('<html><body></body></html>');
+      expect(result).toEqual([]);
     });
 
-    it('should handle missing data field', () => {
-      const result = index.parseApiJobs({});
+    it('should handle missing fields gracefully', () => {
+      const html = `<div class="jobs-wrapper col-lg-8">
+        <div class="listing">
+          <div class="list-item">
+            <div class="details">
+              <h4>Test Job</h4>
+            </div>
+          </div>
+        </div>
+      </div>`;
 
-      expect(result.jobs).toEqual([]);
-    });
+      const result = index.parseJobsHTML(html);
 
-    it('should handle multiple cities', () => {
-      const apiData = {
-        data: {
-          total: 1,
-          jobs: [
-            {
-              uid: '123',
-              name: 'Developer',
-              city: [{ name: 'Bucharest' }, { name: 'Cluj-Napoca' }],
-              country: [{ name: 'Romania' }]
-            }
-          ]
-        }
-      };
-
-      const result = index.parseApiJobs(apiData);
-
-      expect(result.jobs[0].location).toEqual(['Bucharest', 'Cluj-Napoca']);
-    });
-  });
-
-  describe('URL Generation', () => {
-    it('should use seo.url when available', () => {
-      const apiData = {
-        data: {
-          total: 1,
-          jobs: [
-            {
-              uid: 'blt123',
-              name: 'Test Job',
-              seo: { url: '/en/vacancy/test-job-blt123_en' },
-              city: [{ name: 'Bucharest' }]
-            }
-          ]
-        }
-      };
-
-      const result = index.parseApiJobs(apiData);
-
-      expect(result.jobs[0].url).toBe('https://careers.epam.com/en/vacancy/test-job-blt123_en');
-    });
-
-    it('should fallback to uid-based URL when no seo.url', () => {
-      const apiData = {
-        data: {
-          total: 1,
-          jobs: [
-            {
-              uid: 'blt456',
-              name: 'Test Job',
-              city: [{ name: 'Bucharest' }]
-            }
-          ]
-        }
-      };
-
-      const result = index.parseApiJobs(apiData);
-
-      expect(result.jobs[0].url).toBe('https://careers.epam.com/en/vacancy/blt456_en');
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe('Test Job');
+      expect(result[0].location).toEqual(['Sibiu']);
+      expect(result[0].workmode).toBe('on-site');
+      expect(result[0].tags).toEqual([]);
     });
   });
 });
