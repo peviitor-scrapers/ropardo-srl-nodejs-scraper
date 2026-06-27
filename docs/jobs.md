@@ -14,7 +14,7 @@
 
 ## Current Job Listings (2)
 
-_Generated: 2026-06-27T07:59:32.909Z_
+_Generated: 2026-06-27T08:24:59.225Z_
 
 ### Junior BI Developer: Transforming Data into Business Insights - open for students
 
