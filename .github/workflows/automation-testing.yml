@@ -67,25 +67,49 @@ jobs:
           SCRAPER_FILE=$(jq -r '.scraperFile' config/company.json)
           TODAY=$(date -u +%Y-%m-%d)
 
-          # Always upsert full company doc from config/company.json (source of truth)
-          jq -n \
-            --arg id "$CIF" \
-            --arg company "$LEGAL_NAME" \
-            --arg brand "$BRAND" \
-            --arg website "$WEBSITE" \
-            --arg career "$CAREER" \
-            --arg loc "$DEFAULT_LOC" \
-            --arg today "$TODAY" \
-            --arg scraperFile "$SCRAPER_FILE" \
-            '[{id:$id,company:$company,brand:$brand,status:"activ",location:[$loc],website:[$website],career:[$career],lastScraped:$today,scraperFile:$scraperFile}]' \
-            > company_data.json
+          # Build expected fields list
+          EXPECTED_FIELDS='["company","brand","status","location","website","career","lastScraped","scraperFile"]'
 
-          echo "Upserting ${BRAND} to company core..."
-          curl -s --user "${SOLR_AUTH}" \
-            "https://solr.peviitor.ro/solr/company/update/json?commit=true" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            --data-binary @company_data.json
+          # Fetch existing doc
+          EXISTING_DOC=$(curl -s --user "${SOLR_AUTH}" \
+            "https://solr.peviitor.ro/solr/company/select?q=id:${CIF}&rows=1" | jq '.response.docs[0] // empty')
+
+          if [ -z "$EXISTING_DOC" ]; then
+            echo "${BRAND} not found in company core - adding..."
+            NEEDS_PUSH=true
+          else
+            # Check if any expected field is missing
+            MISSING=$(echo "$EXISTING_DOC" | jq --argjson fields "$EXPECTED_FIELDS" '
+              $fields | map(select(. as $f | has($f) | not))')
+            NEEDS_PUSH=false
+            if [ "$MISSING" != "[]" ]; then
+              echo "${BRAND} missing fields: ${MISSING} - updating..."
+              NEEDS_PUSH=true
+            else
+              echo "${BRAND} has all expected fields - no update needed"
+            fi
+          fi
+
+          if [ "$NEEDS_PUSH" = true ]; then
+            jq -n \
+              --arg id "$CIF" \
+              --arg company "$LEGAL_NAME" \
+              --arg brand "$BRAND" \
+              --arg website "$WEBSITE" \
+              --arg career "$CAREER" \
+              --arg loc "$DEFAULT_LOC" \
+              --arg today "$TODAY" \
+              --arg scraperFile "$SCRAPER_FILE" \
+              '[{id:$id,company:$company,brand:$brand,status:"activ",location:[$loc],website:[$website],career:[$career],lastScraped:$today,scraperFile:$scraperFile}]' \
+              > company_data.json
+
+            echo "Upserting ${BRAND} to company core..."
+            curl -s --user "${SOLR_AUTH}" \
+              "https://solr.peviitor.ro/solr/company/update/json?commit=true" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              --data-binary @company_data.json
+          fi
 
           FINAL=$(curl -s --user "${SOLR_AUTH}" \
             "https://solr.peviitor.ro/solr/company/select?q=id:${CIF}&rows=1" | jq '.response.numFound')
