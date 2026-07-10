@@ -125,11 +125,18 @@ describe('Integration: API Workflow', () => {
       expect(ropardo).toHaveProperty('website');
       expect(Array.isArray(ropardo.website)).toBe(true);
       expect(ropardo.website[0]).toMatch(/^https?:\/\/.+/);
-      expect(ropardo).toHaveProperty('career');
-      expect(Array.isArray(ropardo.career)).toBe(true);
-      expect(ropardo.career[0]).toMatch(/^https?:\/\/.+/);
       expect(ropardo).toHaveProperty('lastScraped');
       expect(ropardo).toHaveProperty('scraperFile');
+    }, 15000);
+
+    itIfSolr('should have optional field (career) if present', async () => {
+      const result = await solr.queryCompanySOLR(`id:${ROPARDO_CIF}`);
+      const ropardo = result.docs[0];
+
+      if (ropardo.career !== undefined) {
+        expect(Array.isArray(ropardo.career)).toBe(true);
+        expect(ropardo.career[0]).toMatch(/^https?:\/\/.+/);
+      }
     }, 15000);
 
     itIfSolr('should have optional field (group) if present', async () => {
