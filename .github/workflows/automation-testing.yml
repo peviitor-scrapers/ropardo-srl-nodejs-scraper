@@ -79,8 +79,8 @@ jobs:
             NEEDS_PUSH=true
           else
             # Check if any expected field is missing
-            MISSING=$(echo "$EXISTING_DOC" | jq --argjson fields "$EXPECTED_FIELDS" '
-              $fields | map(select(. as $f | has($f) | not))')
+            MISSING=$(echo "$EXISTING_DOC" | jq --argjson fields "$EXPECTED_FIELDS" --argjson doc "$EXISTING_DOC" '
+              $fields | map(select(. as $f | $doc | has($f) | not))')
             NEEDS_PUSH=false
             if [ "$MISSING" != "[]" ]; then
               echo "${BRAND} missing fields: ${MISSING} - updating..."
