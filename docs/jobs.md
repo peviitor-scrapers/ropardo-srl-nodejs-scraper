@@ -10,11 +10,11 @@
 | Location | Str. RECONSTRUCTIEI, 2 A, Municipiul Sibiu, Sibiu |
 | Website | [https://www.ropardo.ro](https://www.ropardo.ro) |
 | Careers | [https://jobs.ropardo.ro](https://jobs.ropardo.ro) |
-| Last Scraped | 2026-07-11 |
+| Last Scraped | 2026-07-12 |
 
 ## Current Job Listings (2)
 
-_Generated: 2026-07-11T07:30:30.035Z_
+_Generated: 2026-07-12T07:56:29.023Z_
 
 ### Junior BI Developer: Transforming Data into Business Insights - open for students
 
