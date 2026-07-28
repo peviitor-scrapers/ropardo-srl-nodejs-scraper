@@ -209,7 +209,7 @@ export async function getCompanyData() {
     console.log(`Cached status: ${companyConfig.status}`);
 
     const company = companyConfig.company.toUpperCase();
-    const cif = companyConfig.id;
+    const cif = String(companyConfig.id);
     const active = companyConfig.status === "activ";
 
     // Load raw ANAF data for fallback
@@ -229,7 +229,7 @@ export async function getCompanyData() {
       console.log(`⚠️ ANAF unreachable (${err.message}) — falling back to stale config`);
       return {
         company: companyConfig.company.toUpperCase(),
-        cif: companyConfig.id,
+        cif: String(companyConfig.id),
         active: companyConfig.status === "activ",
         anafData: null
       };
