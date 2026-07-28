@@ -16,42 +16,27 @@ function itIfPeviitor(name, fn, timeout) {
 
 const TEST_CIF = '5415866';
 const TEST_BRAND = 'ROPARDO';
-const API_URL = 'https://jobs.ropardo.ro/api/apply/positions';
+const CAREERS_URL = 'https://ropardo.ro/careers/';
 
 describe('E2E: Full Scraping Pipeline', () => {
 
   describe('Fetch Real Data', () => {
-    let data;
+    let rawJobs;
 
     beforeAll(async () => {
-      const res = await fetch(API_URL, {
-        headers: {
-          'User-Agent': 'job_seeker_ro_spider',
-          'Accept': 'application/json'
-        }
-      });
-      data = await res.json();
-    }, 25000);
+      rawJobs = await fetchJobs();
+    }, 30000);
 
-    it('should return JSON with metadata and results', () => {
-      expect(data).toHaveProperty('metadata');
-      expect(data).toHaveProperty('results');
-      expect(Array.isArray(data.results)).toBe(true);
+    it('should scrape jobs from careers page', () => {
+      expect(Array.isArray(rawJobs)).toBe(true);
+      expect(rawJobs.length).toBeGreaterThan(0);
     });
 
-    it('should have pagination metadata', () => {
-      expect(data.metadata).toHaveProperty('total');
-      expect(data.metadata.total).toBeGreaterThan(0);
-    });
-
-    it('should have jobs with title, id, and applyUrl', () => {
-      expect(data.results.length).toBeGreaterThan(0);
-
-      const job = data.results[0];
+    it('should have jobs with title and applyUrl', () => {
+      const job = rawJobs[0];
       expect(job).toHaveProperty('title');
       expect(typeof job.title).toBe('string');
       expect(job.title.length).toBeGreaterThan(0);
-      expect(job).toHaveProperty('id');
       expect(job).toHaveProperty('applyUrl');
       expect(job.applyUrl).toMatch(/^https?:\/\//);
     });
@@ -62,7 +47,7 @@ describe('E2E: Full Scraping Pipeline', () => {
 
     beforeAll(async () => {
       rawJobs = await fetchJobs();
-    }, 25000);
+    }, 30000);
 
     it('should fetch jobs from API', () => {
       expect(Array.isArray(rawJobs)).toBe(true);

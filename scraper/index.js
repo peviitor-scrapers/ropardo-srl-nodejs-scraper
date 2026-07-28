@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import * as cheerio from "cheerio";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { validateAndGetCompany } from "./company.js";
@@ -8,8 +9,8 @@ import companyConfig from "./config/company.js";
 
 const COMPANY_ID = companyConfig.id;
 
-const POSITIONS_API = "https://jobs.ropardo.ro/api/apply/positions";
-const JOBS_PAGE = "https://jobs.ropardo.ro/jobs";
+const CAREERS_URL = "https://ropardo.ro/careers/";
+const JOBS_BASE = "https://jobs.ropardo.ro/job/";
 
 const ANOFM_TIMEOUT = 10000;
 
@@ -68,57 +69,69 @@ function normalizeJobType(type) {
 }
 
 // ============================================================================
-// JOB FETCHING — paginated JSON API
+// JOB FETCHING — HTML scraping from ropardo.ro/careers + job pages
 // ============================================================================
 
+async function fetchHTML(url) {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "job_seeker_ro_spider" }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
+  return await res.text();
+}
+
 async function fetchJobs() {
+  console.log("Fetching ROPARDO job links from careers page...");
+
+  const html = await fetchHTML(CAREERS_URL);
+  const $ = cheerio.load(html);
+
+  const jobUrls = [];
+  $('a[href^="https://jobs.ropardo.ro/job/"]').each((_, el) => {
+    const href = $(el).attr("href").replace(/\/$/, "/");
+    if (!jobUrls.includes(href)) jobUrls.push(href);
+  });
+
+  console.log(`Found ${jobUrls.length} job link(s)`);
+
   const allJobs = [];
-  let page = 1;
-  let total = Infinity;
+  for (const jobUrl of jobUrls) {
+    try {
+      console.log(`  Scraping: ${jobUrl}`);
+      const jobHtml = await fetchHTML(jobUrl);
+      const $job = cheerio.load(jobHtml);
 
-  console.log("Fetching ROPARDO jobs from API...");
+      const title = normalizeTitle($job("h1").first().text());
+      if (!title) continue;
 
-  while (true) {
-    const url = `${POSITIONS_API}?page=${page}`;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "job_seeker_ro_spider",
-        "Accept": "application/json"
-      }
-    });
+      const employment = $job(".sidebar-section h5").filter((_, el) => $job(el).text().trim() === "Employment").closest(".sidebar-section").text().replace("Employment", "").trim();
+      const workplace = $job(".sidebar-section h5").filter((_, el) => $job(el).text().trim() === "Workplace").closest(".sidebar-section").text().replace("Workplace", "").trim();
 
-    if (!res.ok) {
-      throw new Error(`API error ${res.status} fetching page ${page}`);
+      let applyUrl = jobUrl;
+      $job('a.button[href]').each((_, el) => {
+        const text = $job(el).text().toLowerCase();
+        if (text.includes("apply")) {
+          applyUrl = $job(el).attr("href");
+        }
+      });
+
+      allJobs.push({
+        title,
+        applyUrl,
+        location: workplace || undefined,
+        employment: employment || undefined
+      });
+    } catch (err) {
+      console.log(`  Warning: failed to scrape ${jobUrl}: ${err.message}`);
     }
-
-    const data = await res.json();
-
-    if (page === 1 && data.metadata) {
-      total = data.metadata.total || 0;
-      console.log(`Total jobs available: ${total}`);
-    }
-
-    const results = data.results || [];
-    if (results.length === 0) break;
-
-    allJobs.push(...results);
-
-    if (data.metadata) {
-      const pageSize = data.metadata.pageSize || 20;
-      if (page * pageSize >= total) break;
-    } else {
-      break;
-    }
-
-    page++;
   }
 
-  console.log(`Fetched ${allJobs.length} jobs from ${page} page(s)`);
+  console.log(`Fetched ${allJobs.length} jobs from ROPARDO website`);
   return allJobs;
 }
 
 // ============================================================================
-// JOB PARSING — uses companyData from API response
+// JOB PARSING — normalizes scraped HTML data
 // ============================================================================
 
 function parseJobs(rawJobs) {
@@ -128,21 +141,20 @@ function parseJobs(rawJobs) {
     const title = normalizeTitle(raw.title);
     if (!title) continue;
 
-    let location = normalizeLocation(raw.location);
+    let location = normalizeLocation(raw.location || raw.workplace);
 
-    if (location.length === 0 && raw.companyData?.address) {
-      location = normalizeLocation(raw.companyData.address);
-    }
-
+    const employment = (raw.employment || "").toLowerCase();
     let workmode = "on-site";
-    if (raw.location?.toLowerCase().includes("remote")) {
+    if (employment.includes("remote") || raw.location?.toLowerCase().includes("remote")) {
       workmode = "remote";
+    } else if (employment.includes("hybrid")) {
+      workmode = "hybrid";
     }
 
     const tags = [];
     if (raw.department) tags.push(raw.department.toLowerCase());
 
-    const url = raw.applyUrl || `${JOBS_PAGE}/${raw.id}`;
+    const url = raw.applyUrl || raw.url;
 
     jobs.push({
       url,

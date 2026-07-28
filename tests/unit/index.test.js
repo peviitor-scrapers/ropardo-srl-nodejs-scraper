@@ -179,22 +179,22 @@ describe('index.js Component Tests', () => {
       expect(result[0].url).toBe('https://custom-url.com/apply');
     });
 
-    it('should fallback to page URL when applyUrl missing', () => {
+    it('should fallback to raw.url when applyUrl missing', () => {
       const rawJobs = [
-        { id: '123', title: 'Job' }
+        { title: 'Job', url: 'https://jobs.ropardo.ro/job/test/' }
       ];
 
       const result = index.parseJobs(rawJobs);
-      expect(result[0].url).toBe('https://jobs.ropardo.ro/jobs/123');
+      expect(result[0].url).toBe('https://jobs.ropardo.ro/job/test/');
     });
 
-    it('should use companyData.address as location fallback', () => {
+    it('should use workplace as location fallback', () => {
       const rawJobs = [
         {
-          id: '123',
           title: 'Job',
           location: '',
-          companyData: { address: 'Sibiu, Romania' }
+          employment: 'Full-time',
+          workplace: 'Sibiu'
         }
       ];
 
