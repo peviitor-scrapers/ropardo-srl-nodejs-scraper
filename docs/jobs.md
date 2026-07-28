@@ -12,27 +12,62 @@
 | Careers | [https://jobs.ropardo.ro](https://jobs.ropardo.ro) |
 | Last Scraped | 2026-07-28 |
 
-## Current Job Listings (3)
+## Current Job Listings (8)
 
-_Generated: 2026-07-28T08:11:44.873Z_
+_Generated: 2026-07-28T09:20:33.163Z_
 
 ### Junior BI Developer: Transforming Data into Business Insights - open for students
 
-- **URL:** [https://jobs.ropardo.ro/my-account/login/?job_id=9611](https://jobs.ropardo.ro/my-account/login/?job_id=9611)
+- **URL:** [https://jobs.ropardo.ro/job/junior-bi-developer-transforming-data-into-business-insights-open-for-students/](https://jobs.ropardo.ro/job/junior-bi-developer-transforming-data-into-business-insights-open-for-students/)
 - **Work Mode:** on-site
 - **Location:** Sibiu
 - **Status:** scraped
 
 ### Senior Java Developer
 
-- **URL:** [https://jobs.ropardo.ro/my-account/login/?job_id=5129](https://jobs.ropardo.ro/my-account/login/?job_id=5129)
+- **URL:** [https://jobs.ropardo.ro/job/senior-java-developer/](https://jobs.ropardo.ro/job/senior-java-developer/)
 - **Work Mode:** remote
 - **Location:** Sibiu
 - **Status:** scraped
 
 ### Senior Backend Engineers
 
-- **URL:** [https://jobs.ropardo.ro/my-account/login/?job_id=5152](https://jobs.ropardo.ro/my-account/login/?job_id=5152)
+- **URL:** [https://jobs.ropardo.ro/job/senior-backend-engineers/](https://jobs.ropardo.ro/job/senior-backend-engineers/)
 - **Work Mode:** remote
+- **Location:** Sibiu
+- **Status:** scraped
+
+### Paid Internships
+
+- **URL:** [https://ropardo.ro/careers/for-students/#paid-internships](https://ropardo.ro/careers/for-students/#paid-internships)
+- **Work Mode:** on-site
+- **Location:** Sibiu
+- **Status:** scraped
+
+### Summer Practice
+
+- **URL:** [https://ropardo.ro/careers/for-students/#summer-practice](https://ropardo.ro/careers/for-students/#summer-practice)
+- **Work Mode:** on-site
+- **Location:** Sibiu
+- **Status:** scraped
+
+### Co-tutoring
+
+- **URL:** [https://ropardo.ro/careers/for-students/#co-tutoring](https://ropardo.ro/careers/for-students/#co-tutoring)
+- **Work Mode:** on-site
+- **Location:** Sibiu
+- **Status:** scraped
+
+### Applied Research
+
+- **URL:** [https://ropardo.ro/careers/for-students/#applied-research](https://ropardo.ro/careers/for-students/#applied-research)
+- **Work Mode:** on-site
+- **Location:** Sibiu
+- **Status:** scraped
+
+### Crush IT – Start Smart in your IT career
+
+- **URL:** [https://ropardo.ro/careers/for-students/#crush-it-start-smart-in-your-it-career](https://ropardo.ro/careers/for-students/#crush-it-start-smart-in-your-it-career)
+- **Work Mode:** on-site
 - **Location:** Sibiu
 - **Status:** scraped
