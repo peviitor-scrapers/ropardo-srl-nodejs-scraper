@@ -8,8 +8,8 @@
 
 import fetch from "node-fetch";
 import fs from "fs";
-import { querySOLR, deleteJobsByCIF } from "./solr.js";
-import { getCompanyFromANAF } from "./src/anaf.js";
+import { querySOLR, deleteJobsByCIF } from "./api.js";
+import { getCompanyFromANAF } from "./company-data.js";
 import companyConfig from "./config/company.js";
 
 // ============================================================================
@@ -17,18 +17,16 @@ import companyConfig from "./config/company.js";
 // ============================================================================
 
 // Peviitor API base URL for company validation
-const Peviitor_API_URL = "https://api.peviitor.ro/v1/company/";
+const PEVIITOR_API_URL = "https://api.peviitor.ro/v1/firme/company/";
 
-const COMPANY_CIF = companyConfig.cif;
-const COMPANY_BRAND = companyConfig.brand;
+const COMPANY_ID = companyConfig.id;
+const COMPANY_BRAND = companyConfig.brand || null;
 
 // Cache TTL — re-fetch from ANAF if cached data is older than this
 const CACHE_MAX_AGE_DAYS = 7;
 
-// Root cache file (committed to repo, survives between CI runs)
-const ROOT_CACHE_PATH = "company.json";
-// Local tmp cache (per-run, gitignored)
-const TMP_CACHE_PATH = "tmp/company.json";
+// ANAF raw data cache (per-run, for offline fallback)
+const ANAF_CACHE_PATH = "scraper/anaf-cache.json";
 
 // ============================================================================
 // COMPANY MODEL - Defines the expected schema for company data
@@ -62,7 +60,7 @@ const COMPANY_MODEL_FIELDS = [
  * @returns {Promise<Object|null>} - Company data or null if not found
  */
 async function getCompanyFromPeviitor(companyName) {
-  const url = `${Peviitor_API_URL}?name=${encodeURIComponent(companyName)}`;
+  const url = `${PEVIITOR_API_URL}?name=${encodeURIComponent(companyName)}`;
   const res = await fetch(url, {
     headers: {
       origin: "https://peviitor.ro",
@@ -76,7 +74,10 @@ async function getCompanyFromPeviitor(companyName) {
   }
   
   const data = await res.json();
-  return data.companies?.[0] || null;
+  if (!data.success) {
+    throw new Error(`Peviitor API failed: ${JSON.stringify(data)}`);
+  }
+  return data.data?.[0] || null;
 }
 
 // ============================================================================
@@ -142,91 +143,51 @@ function validateCompanyModel(data) {
 // ============================================================================
 
 /**
- * Saves company data to company.json for caching
- * This allows the scraper to work offline when ANAF API is unavailable
+ * Saves ANAF raw data for offline fallback.
+ * Updates lastScraped in config/company.json (the single source of truth).
  * @param {Object} anafData - Company data from ANAF
  * @param {Object} peviitorData - Company data from Peviitor (optional)
- * @returns {Object} - The saved company data object
  */
 function saveCompanyData(anafData, peviitorData) {
-  const companyData = {
-    // Metadata
+  // Save ANAF raw data for offline fallback
+  const anafCache = {
     validatedAt: new Date().toISOString(),
-    source: "ANAF",
-    brand: COMPANY_BRAND,
-    
-    // Raw data from sources
     anaf: anafData,
-    peviitor: peviitorData,
-    
-    // Summary with extracted key fields
-    summary: {
-      company: anafData?.name || null,                    // Official company name
-      cif: anafData?.cui?.toString() || null,              // CIF as string
-      active: !anafData?.inactive,                          // Active status
-      inactiveSince: anafData?.inactiveSince || null,       // When became inactive
-      reactivatedSince: anafData?.reactivatedSince || null,  // When reactivated
-      address: anafData?.address || null,                   // Registered address
-      registrationNumber: anafData?.registrationNumber || null, // J40/... number
-      caenCode: anafData?.caenCode || null,                 // Business activity code
-      vatRegistered: anafData?.vatRegistered || false,      // TVA status
-      eFacturaRegistered: anafData?.eFacturaRegistered || false // e-Factura status
-    }
+    peviitor: peviitorData
   };
-  
-  const json = JSON.stringify(companyData, null, 2);
+  fs.mkdirSync("scraper", { recursive: true });
+  fs.writeFileSync(ANAF_CACHE_PATH, JSON.stringify(anafCache, null, 2), "utf-8");
+  console.log(`✅ Saved ANAF cache to ${ANAF_CACHE_PATH}`);
 
-  // Always write tmp cache (per-run scratch)
-  fs.mkdirSync("tmp", { recursive: true });
-  fs.writeFileSync(TMP_CACHE_PATH, json, "utf-8");
-  console.log(`\n✅ Saved company data to ${TMP_CACHE_PATH}`);
-
-  // Also update root cache (committed to repo, survives between CI runs)
-  fs.writeFileSync(ROOT_CACHE_PATH, json, "utf-8");
-  console.log(`✅ Updated root cache ${ROOT_CACHE_PATH}\n`);
-
-  return companyData;
+  // Update lastScraped in config/company.json (single source of truth)
+  const configPath = "scraper/config/company.json";
+  const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  config.lastScraped = new Date().toISOString().split("T")[0];
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+  console.log(`✅ Updated lastScraped in ${configPath}`);
 }
 
 /**
- * Validates that cached data has the required ANAF fields.
+ * Loads ANAF raw cache for offline fallback.
  */
-function isValidCache(data) {
-  return Boolean(data?.anaf?.cui && data?.anaf?.name);
+function loadAnafCache() {
+  if (!fs.existsSync(ANAF_CACHE_PATH)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(ANAF_CACHE_PATH, "utf-8"));
+  } catch (e) {
+    console.log(`Warning: Could not parse ${ANAF_CACHE_PATH}`);
+    return null;
+  }
 }
 
 /**
- * Checks whether the cache is still fresh (within CACHE_MAX_AGE_DAYS).
+ * Checks whether the config lastScraped is still fresh (within CACHE_MAX_AGE_DAYS).
  */
-function isCacheFresh(data) {
-  if (!data?.validatedAt) return false;
-  const ageMs = Date.now() - new Date(data.validatedAt).getTime();
+function isCacheFresh() {
+  if (!companyConfig.lastScraped) return false;
+  const ageMs = Date.now() - new Date(companyConfig.lastScraped).getTime();
   const ageDays = ageMs / (1000 * 60 * 60 * 24);
   return ageDays < CACHE_MAX_AGE_DAYS;
-}
-
-/**
- * Loads cached company data, checking tmp/ first (fresh per-run), then root (committed backup).
- * Returns the cache if valid AND fresh. Returns null if stale or missing.
- * Returns `{ ...data, _stale: true }` if found but stale — caller may still use as fallback.
- */
-function loadCachedCompanyData() {
-  for (const cachePath of [TMP_CACHE_PATH, ROOT_CACHE_PATH]) {
-    if (!fs.existsSync(cachePath)) continue;
-    try {
-      const data = JSON.parse(fs.readFileSync(cachePath, "utf-8"));
-      if (!isValidCache(data)) continue;
-      if (isCacheFresh(data)) {
-        console.log(`Found fresh cached company data in ${cachePath}`);
-        return data;
-      }
-      console.log(`Found stale cached company data in ${cachePath} (older than ${CACHE_MAX_AGE_DAYS} days)`);
-      return { ...data, _stale: true };
-    } catch (e) {
-      console.log(`Warning: Could not parse ${cachePath}`);
-    }
-  }
-  return null;
 }
 
 // ============================================================================
@@ -236,43 +197,41 @@ function loadCachedCompanyData() {
 /**
  * Gets company data, preferring cache over live API calls.
  * CIF and brand are read from config/company.json.
- * Cache order: tmp/company.json → company.json (root) → ANAF live.
- * Stale cache is used as fallback if ANAF is unreachable.
+ * Cache order: config/company.json (lastScraped) → ANAF live.
+ * Stale config is used as fallback if ANAF is unreachable.
  * @returns {Promise<Object>} - Company data with company name, CIF, and active status
  */
 export async function getCompanyData() {
-  const cachedData = loadCachedCompanyData();
-
   // Fresh cache → use it, skip ANAF
-  if (cachedData && !cachedData._stale && cachedData.summary?.cif) {
-    console.log(`Using cached company data for CIF: ${cachedData.summary.cif}`);
-    const anafData = cachedData.anaf;
+  if (isCacheFresh() && companyConfig.id) {
+    console.log(`Using cached company data for CIF: ${companyConfig.id}`);
+    console.log(`Cached name: ${companyConfig.company}`);
+    console.log(`Cached status: ${companyConfig.status}`);
 
-    console.log(`Cached name: ${anafData.name}`);
-    console.log(`Cached CUI: ${anafData.cui}`);
-    console.log(`Cached status: ${anafData.inactive ? "INACTIVE" : "ACTIVE"}`);
+    const company = companyConfig.company.toUpperCase();
+    const cif = companyConfig.id;
+    const active = companyConfig.status === "activ";
 
-    const company = anafData.name.toUpperCase();
-    const cif = anafData.cui.toString();
-    const active = !anafData.inactive;
+    // Load raw ANAF data for fallback
+    const anafCache = loadAnafCache();
+    const anafData = anafCache?.anaf || null;
 
     return { company, cif, active, anafData };
   }
 
   // Stale or missing cache → try ANAF, fall back to stale cache if ANAF fails
-  console.log(`Fetching fresh company data from ANAF for CIF: ${COMPANY_CIF}`);
+  console.log(`Fetching fresh company data from ANAF for CIF: ${COMPANY_ID}`);
   let anafData;
   try {
-    anafData = await getCompanyFromANAF(COMPANY_CIF);
+    anafData = await getCompanyFromANAF(COMPANY_ID);
   } catch (err) {
-    if (cachedData?._stale) {
-      console.log(`⚠️ ANAF unreachable (${err.message}) — falling back to stale cache`);
-      const a = cachedData.anaf;
+    if (companyConfig.lastScraped) {
+      console.log(`⚠️ ANAF unreachable (${err.message}) — falling back to stale config`);
       return {
-        company: a.name.toUpperCase(),
-        cif: a.cui.toString(),
-        active: !a.inactive,
-        anafData: a
+        company: companyConfig.company.toUpperCase(),
+        cif: companyConfig.id,
+        active: companyConfig.status === "activ",
+        anafData: null
       };
     }
     throw err;
@@ -325,7 +284,7 @@ export async function validateAndGetCompany() {
   console.log("\n=== Step 3: Validate via Peviitor ===\n");
   let peviitorData = null;
   try {
-    peviitorData = await getCompanyFromPeviitor(COMPANY_BRAND);
+    peviitorData = await getCompanyFromPeviitor(companyConfig.company);
     console.log("Peviitor data fetched successfully");
   } catch (e) {
     console.log("Peviitor API error:", e.message);
@@ -343,7 +302,7 @@ export async function validateAndGetCompany() {
     return { status: "inactive", company, cif, existingJobsCount: solrResult.numFound };
   }
   
-  const address = anafData?.address || anafData?.headquartersAddress?.locality || "";
+  const address = anafData?.headquartersAddress?.locality || anafData?.address || "";
   
   console.log(`\n✅ Company validated: ${company}, CIF: ${cif}`);
   console.log("Ready to scrape jobs...\n");

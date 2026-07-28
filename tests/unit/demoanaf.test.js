@@ -28,37 +28,31 @@ function errorResponse(status) {
   };
 }
 
-const ANRAF_RECORD = {
+const ANAF_RECORD = {
   cui: 5415866,
   name: 'ROPARDO SRL',
-  address: 'IANCU DE HUNEDOARA, 48, Bucureşti Sectorul 1, Bucureşti',
+  address: 'Str. RECONSTRUCTIEI, 2 A, Municipiul Sibiu, Sibiu',
   caenCode: '6220',
   inactive: false,
-  inactiveSince: '2018-12-27',
-  reactivatedSince: '2020-05-13',
   registrationNumber: 'J2014005735405',
   vatRegistered: true,
-  onrcStatusLabel: 'Funcțiune',
-  legalForm: 'SRL'
+  headquartersAddress: { locality: 'Sibiu' }
 };
 
 const CACHED_DATA = {
   cui: 5415866,
   name: 'ROPARDO SRL',
-  address: 'MUNICIPIUL BUCUREŞTI, SECTOR 1, BLD IANCU DE HUNEDOARA, NR.48, ET.9',
+  address: 'MUNICIPIUL BUCUREŞTI, SECTOR 1',
   registrationNumber: 'J2014005735405',
   caenCode: '6220',
-  inactive: false,
-  onrcStatusLabel: 'Funcțiune',
-  administrators: [{ name: 'JASON PETERSON', role: 'administrator' }],
-  authorizedCaenCodes: ['6210', '6220', '6290', '7020', '8559']
+  inactive: false
 };
 
-describe('src/anaf.js', () => {
-  let anaf;
+describe('company-data.js', () => {
+  let companyData;
 
   beforeAll(async () => {
-    anaf = await import('../../src/anaf.js');
+    companyData = await import('../../scraper/company-data.js');
   });
 
   beforeEach(() => {
@@ -71,7 +65,7 @@ describe('src/anaf.js', () => {
         { cui: 5415866, name: 'ROPARDO SRL', statusLabel: 'Funcțiune' }
       ]));
 
-      const results = await anaf.searchCompany('ROPARDO');
+      const results = await companyData.searchCompany('ROPARDO');
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
@@ -82,7 +76,7 @@ describe('src/anaf.js', () => {
     it('should return empty array for non-existent brand', async () => {
       mockFetch.mockResolvedValue(anafSearchResponse([]));
 
-      const results = await anaf.searchCompany('NonExistentBrandXYZ123');
+      const results = await companyData.searchCompany('NonExistentBrandXYZ123');
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBe(0);
@@ -93,15 +87,15 @@ describe('src/anaf.js', () => {
         { cui: 5415866, name: 'ROPARDO SRL', statusLabel: 'Funcțiune' }
       ]));
 
-      const results = await anaf.searchCompany('ROPARDO');
+      const results = await companyData.searchCompany('ROPARDO');
 
       expect(results[0]).toHaveProperty('statusLabel', 'Funcțiune');
     });
 
-    it('should throw on HTTP error', async () => {
+    it('should throw on ANAF search error', async () => {
       mockFetch.mockResolvedValue(errorResponse(500));
 
-      await expect(anaf.searchCompany('ROPARDO')).rejects.toThrow('ANAF search error: 500');
+      await expect(companyData.searchCompany('ROPARDO')).rejects.toThrow();
     });
 
     it('should encode brand name in URL', async () => {
@@ -111,16 +105,16 @@ describe('src/anaf.js', () => {
         return Promise.resolve(anafSearchResponse([]));
       });
 
-      await anaf.searchCompany('ROPARDO SRL');
+      await companyData.searchCompany('ROPARDO SRL');
       expect(capturedUrl).toContain(encodeURIComponent('ROPARDO SRL'));
     });
   });
 
   describe('getCompanyFromANAF', () => {
     it('should return company data for valid CIF', async () => {
-      mockFetch.mockResolvedValue(anafCompanyResponse(ANRAF_RECORD));
+      mockFetch.mockResolvedValue(anafCompanyResponse(ANAF_RECORD));
 
-      const data = await anaf.getCompanyFromANAF('5415866');
+      const data = await companyData.getCompanyFromANAF('5415866');
 
       expect(data).toBeDefined();
       expect(data.cui).toBe(5415866);
@@ -129,41 +123,10 @@ describe('src/anaf.js', () => {
       expect(data).toHaveProperty('registrationNumber');
     });
 
-    it('should retry on HTTP error then succeed', async () => {
+    it('should try cuifirma when ANAF fails', async () => {
       mockFetch
-        .mockResolvedValueOnce(errorResponse(500))           // ANAF attempt 1
-        .mockResolvedValueOnce(errorResponse(500))           // cuifirma fallback
-        .mockResolvedValueOnce(anafCompanyResponse(ANRAF_RECORD)); // ANAF attempt 2
-
-      const data = await anaf.getCompanyFromANAF('5415866');
-
-      expect(data).toBeDefined();
-      expect(data.cui).toBe(5415866);
-      expect(mockFetch).toHaveBeenCalledTimes(3);
-    });
-
-    it('should throw after exhausting retries', async () => {
-      mockFetch.mockResolvedValue(errorResponse(500));
-
-      await expect(anaf.getCompanyFromANAF('5415866')).rejects.toThrow();
-      // ANAF(1) + cuifirma + ANAF(2) + ANAF(3) = 4 calls
-      expect(mockFetch).toHaveBeenCalledTimes(4);
-    });
-
-    it('should handle API-level error response', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: false, error: { message: 'Company not found' } })
-      });
-
-      await expect(anaf.getCompanyFromANAF('00000000')).rejects.toThrow();
-    });
-
-    it('should use cuifirma when ANAF fails', async () => {
-      // ANAF fails, cuifirma returns valid data
-      mockFetch
-        .mockResolvedValueOnce(errorResponse(500))  // ANAF attempt 1
-        .mockResolvedValueOnce({                     // cuifirma fallback
+        .mockResolvedValueOnce(errorResponse(500))  // ANAF fails
+        .mockResolvedValueOnce({                     // cuifirma succeeds
           ok: true,
           json: async () => ({
             jsonrpc: "2.0",
@@ -182,7 +145,7 @@ describe('src/anaf.js', () => {
           })
         });
 
-      const data = await anaf.getCompanyFromANAF('5415866');
+      const data = await companyData.getCompanyFromANAF('5415866');
 
       expect(data).toBeDefined();
       expect(data.name).toBe('ROPARDO SRL');
@@ -191,19 +154,28 @@ describe('src/anaf.js', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
-    it('should return null when data is null', async () => {
-      mockFetch.mockResolvedValue(anafCompanyResponse(null));
+    it('should throw when both sources fail', async () => {
+      mockFetch.mockResolvedValue(errorResponse(500));
 
-      const data = await anaf.getCompanyFromANAF('5415866');
-      expect(data).toBeNull();
+      await expect(companyData.getCompanyFromANAF('5415866')).rejects.toThrow();
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle API-level error response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: false, error: { message: 'Company not found' } })
+      });
+
+      await expect(companyData.getCompanyFromANAF('00000000')).rejects.toThrow();
     });
   });
 
   describe('getCompanyFromANAFWithFallback', () => {
     it('should return fresh data when API works', async () => {
-      mockFetch.mockResolvedValue(anafCompanyResponse(ANRAF_RECORD));
+      mockFetch.mockResolvedValue(anafCompanyResponse(ANAF_RECORD));
 
-      const data = await anaf.getCompanyFromANAFWithFallback('5415866');
+      const data = await companyData.getCompanyFromANAFWithFallback('5415866');
 
       expect(data.name).toBe('ROPARDO SRL');
     });
@@ -211,7 +183,7 @@ describe('src/anaf.js', () => {
     it('should use cached data when API fails', async () => {
       mockFetch.mockResolvedValue(errorResponse(500));
 
-      const data = await anaf.getCompanyFromANAFWithFallback('5415866', CACHED_DATA);
+      const data = await companyData.getCompanyFromANAFWithFallback('5415866', CACHED_DATA);
 
       expect(data).toEqual(CACHED_DATA);
     });
@@ -219,7 +191,7 @@ describe('src/anaf.js', () => {
     it('should throw when API fails and no cache available', async () => {
       mockFetch.mockResolvedValue(errorResponse(500));
 
-      await expect(anaf.getCompanyFromANAFWithFallback('5415866')).rejects.toThrow();
+      await expect(companyData.getCompanyFromANAFWithFallback('5415866')).rejects.toThrow();
     });
   });
 });

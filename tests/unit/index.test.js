@@ -4,185 +4,215 @@ describe('index.js Component Tests', () => {
   let index;
 
   beforeAll(async () => {
-    index = await import('../../index.js');
+    index = await import('../../scraper/index.js');
   });
 
-  describe('transformJobsForSOLR', () => {
-    it('should filter locations to only Romanian cities', () => {
-      const payload = {
-        jobs: [
-          { url: 'https://jobs.ropardo.ro/job/1', title: 'Job 1', location: ['România'] },
-          { url: 'https://jobs.ropardo.ro/job/2', title: 'Job 2', location: ['Sibiu'] },
-          { url: 'https://jobs.ropardo.ro/job/3', title: 'Job 3', location: ['Bulgaria'] },
-          { url: 'https://jobs.ropardo.ro/job/4', title: 'Job 4', location: ['Cluj-Napoca'] },
-          { url: 'https://jobs.ropardo.ro/job/5', title: 'Job 5', location: [] }
-        ]
-      };
-
-      const result = index.transformJobsForSOLR(payload);
-
-      expect(result.jobs[0].location).toEqual(['România']);
-      expect(result.jobs[1].location).toEqual(['Sibiu']);
-      expect(result.jobs[2].location).toEqual(['România']);
-      expect(result.jobs[3].location).toEqual(['Cluj-Napoca']);
-      expect(result.jobs[4].location).toEqual(['România']);
+  describe('normalizeTitle', () => {
+    it('should trim whitespace', () => {
+      expect(index.normalizeTitle('  Senior Developer  ')).toBe('Senior Developer');
     });
 
-    it('should keep company uppercase', () => {
-      const payload = {
-        source: 'ropardo.ro',
-        company: 'ropardo srl',
-        cif: '5415866',
-        jobs: [
-          { url: 'https://jobs.ropardo.ro/job/1', title: 'Job 1', company: 'ropardo srl', cif: '5415866' }
-        ]
-      };
-
-      const result = index.transformJobsForSOLR(payload);
-
-      expect(result.company).toBe('ROPARDO SRL');
+    it('should collapse multiple spaces', () => {
+      expect(index.normalizeTitle('Senior   Developer')).toBe('Senior Developer');
     });
 
-    it('should normalize workmode values', () => {
-      const payload = {
-        jobs: [
-          { url: 'https://jobs.ropardo.ro/job/1', title: 'Job 1', workmode: 'Remote' },
-          { url: 'https://jobs.ropardo.ro/job/2', title: 'Job 2', workmode: 'ON-SITE' },
-          { url: 'https://jobs.ropardo.ro/job/3', title: 'Job 3', workmode: 'Hybrid' },
-          { url: 'https://jobs.ropardo.ro/job/4', title: 'Job 4', workmode: 'hybrid' }
-        ]
-      };
-
-      const result = index.transformJobsForSOLR(payload);
-
-      expect(result.jobs[0].workmode).toBe('remote');
-      expect(result.jobs[1].workmode).toBe('on-site');
-      expect(result.jobs[2].workmode).toBe('hybrid');
-      expect(result.jobs[3].workmode).toBe('hybrid');
-    });
-
-    it('should handle empty jobs array', () => {
-      const result = index.transformJobsForSOLR({ jobs: [] });
-      expect(result.jobs).toEqual([]);
+    it('should return empty string for falsy input', () => {
+      expect(index.normalizeTitle(null)).toBe('');
+      expect(index.normalizeTitle(undefined)).toBe('');
+      expect(index.normalizeTitle('')).toBe('');
     });
   });
 
-  describe('mapToJobModel', () => {
-    it('should map raw job to job model format', () => {
-      const rawJob = {
-        url: 'https://jobs.ropardo.ro/job/senior-java-developer/',
-        title: 'Senior Java Developer',
-        location: ['Sibiu'],
-        tags: ['java', 'spring boot'],
-        workmode: 'remote'
-      };
-
-      const COMPANY_NAME = 'ROPARDO SRL';
-      const COMPANY_CIF = '5415866';
-
-      const result = index.mapToJobModel(rawJob, COMPANY_CIF, COMPANY_NAME);
-
-      expect(result.url).toBe(rawJob.url);
-      expect(result.title).toBe(rawJob.title);
-      expect(result.company).toBe(COMPANY_NAME);
-      expect(result.cif).toBe(COMPANY_CIF);
-      expect(result.location).toEqual(rawJob.location);
-      expect(result.tags).toEqual(rawJob.tags);
-      expect(result.workmode).toBe(rawJob.workmode);
-      expect(result.status).toBe('scraped');
-      expect(result.date).toBeDefined();
+  describe('normalizeLocation', () => {
+    it('should split location by comma and return city', () => {
+      expect(index.normalizeLocation('Cluj-Napoca, Romania')).toEqual(['Cluj-Napoca']);
     });
 
-    it('should remove undefined fields', () => {
-      const rawJob = {
-        url: 'https://jobs.ropardo.ro/job/test/',
-        title: 'Job 1'
-      };
-
-      const result = index.mapToJobModel(rawJob, '5415866');
-
-      expect(result.location).toBeUndefined();
-      expect(result.tags).toBeUndefined();
-      expect(result.workmode).toBeUndefined();
+    it('should return single city for single value', () => {
+      expect(index.normalizeLocation('Sibiu')).toEqual(['Sibiu']);
     });
 
-    it('should handle missing title', () => {
-      const rawJob = { url: 'https://jobs.ropardo.ro/job/test/' };
+    it('should return empty array for "remote"', () => {
+      expect(index.normalizeLocation('Remote')).toEqual([]);
+    });
 
-      const result = index.mapToJobModel(rawJob, '5415866');
-
-      expect(result.title).toBeUndefined();
-      expect(result.url).toBe('https://jobs.ropardo.ro/job/test/');
+    it('should return empty array for falsy input', () => {
+      expect(index.normalizeLocation(null)).toEqual([]);
+      expect(index.normalizeLocation('')).toEqual([]);
     });
   });
 
-  describe('parseJobsHTML', () => {
-    it('should parse job listings from ROPARDO HTML', () => {
-      const html = `<div class="jobs-wrapper col-lg-8">
-        <div class="listing">
-          <div class="list-item">
-            <div class="details">
-              <h4>Senior Java Developer</h4>
-              <div class="meta-info">
-                <div class="meta meta-location"><i class="fa fa-map-marker"></i>Sibiu</div>
-                <div class="meta meta-shedule-duration"><i class="fa fa-calendar"></i>Full-time | Remote</div>
-              </div>
-              <p><strong>Tech skills:</strong>&nbsp;Java 8+, Spring Boot</p>
-            </div>
-            <a class="button job-details" href="https://jobs.ropardo.ro/job/senior-java-developer/">See job</a>
-          </div>
-          <div class="list-item">
-            <div class="details">
-              <h4>Junior BI Developer</h4>
-              <div class="meta-info">
-                <div class="meta meta-location"><i class="fa fa-map-marker"></i>Sibiu, România</div>
-                <div class="meta meta-shedule-duration"><i class="fa fa-calendar"></i>Full-time/ part time/on site</div>
-              </div>
-              <p><strong>Tech skills:</strong>&nbsp;SQL, NoSQL</p>
-            </div>
-            <a class="button job-details" href="https://jobs.ropardo.ro/job/junior-bi-developer/">See job</a>
-          </div>
-        </div>
-      </div>`;
-
-      const result = index.parseJobsHTML(html);
-
-      expect(result).toHaveLength(2);
-      expect(result[0].title).toBe('Senior Java Developer');
-      expect(result[0].location).toEqual(['Sibiu']);
-      expect(result[0].workmode).toBe('remote');
-      expect(result[0].tags).toEqual(['java 8+', 'spring boot']);
-      expect(result[0].url).toBe('https://jobs.ropardo.ro/job/senior-java-developer/');
-
-      expect(result[1].title).toBe('Junior BI Developer');
-      expect(result[1].location).toEqual(['Sibiu']);
-      expect(result[1].workmode).toBe('hybrid');
-      expect(result[1].tags).toEqual(['sql', 'nosql']);
+  describe('normalizeRemote', () => {
+    it('should return true for "Remote"', () => {
+      expect(index.normalizeRemote('Remote')).toBe(true);
     });
 
-    it('should handle empty HTML', () => {
-      const result = index.parseJobsHTML('<html><body></body></html>');
+    it('should return true for "remote"', () => {
+      expect(index.normalizeRemote('remote')).toBe(true);
+    });
+
+    it('should return false for "on-site"', () => {
+      expect(index.normalizeRemote('on-site')).toBe(false);
+    });
+
+    it('should return false for falsy input', () => {
+      expect(index.normalizeRemote(null)).toBe(false);
+      expect(index.normalizeRemote('')).toBe(false);
+    });
+  });
+
+  describe('normalizeWorkmode', () => {
+    it('should return "remote" for remote workmode', () => {
+      expect(index.normalizeWorkmode('Remote')).toBe('remote');
+      expect(index.normalizeWorkmode('remote work')).toBe('remote');
+    });
+
+    it('should return "on-site" for on-site workmode', () => {
+      expect(index.normalizeWorkmode('on-site')).toBe('on-site');
+      expect(index.normalizeWorkmode('On Site')).toBe('on-site');
+    });
+
+    it('should return "hybrid" for other workmodes', () => {
+      expect(index.normalizeWorkmode('hybrid')).toBe('hybrid');
+      expect(index.normalizeWorkmode('Hybrid')).toBe('hybrid');
+    });
+
+    it('should default to "on-site" for falsy input', () => {
+      expect(index.normalizeWorkmode(null)).toBe('on-site');
+      expect(index.normalizeWorkmode('')).toBe('on-site');
+    });
+  });
+
+  describe('extractTeamFromTitle', () => {
+    it('should extract team from bracket prefix', () => {
+      expect(index.extractTeamFromTitle('[Engineering] Senior Developer')).toBe('Engineering');
+    });
+
+    it('should return null when no bracket prefix', () => {
+      expect(index.extractTeamFromTitle('Senior Developer')).toBeNull();
+    });
+
+    it('should return null for falsy input', () => {
+      expect(index.extractTeamFromTitle(null)).toBeNull();
+    });
+  });
+
+  describe('extractJobTypeFromTitle', () => {
+    it('should detect internship', () => {
+      expect(index.extractJobTypeFromTitle('Summer Intern')).toBe('internship');
+      expect(index.extractJobTypeFromTitle('Student Program')).toBe('internship');
+    });
+
+    it('should detect part-time', () => {
+      expect(index.extractJobTypeFromTitle('Developer (part time)')).toBe('part-time');
+    });
+
+    it('should default to full-time', () => {
+      expect(index.extractJobTypeFromTitle('Senior Developer')).toBe('full-time');
+    });
+  });
+
+  describe('normalizeJobType', () => {
+    it('should normalize internship types', () => {
+      expect(index.normalizeJobType('intern')).toBe('internship');
+      expect(index.normalizeJobType('Internship')).toBe('internship');
+    });
+
+    it('should normalize part-time types', () => {
+      expect(index.normalizeJobType('part time')).toBe('part-time');
+      expect(index.normalizeJobType('Part-time')).toBe('part-time');
+    });
+
+    it('should default to full-time', () => {
+      expect(index.normalizeJobType('full-time')).toBe('full-time');
+      expect(index.normalizeJobType(null)).toBe('full-time');
+    });
+  });
+
+  describe('parseJobs', () => {
+    it('should parse raw API results into normalized jobs', () => {
+      const rawJobs = [
+        {
+          id: '123',
+          title: 'Senior Developer',
+          location: 'Cluj-Napoca, Romania',
+          applyUrl: 'https://jobs.ropardo.ro/jobs/123',
+          department: 'IT',
+          companyData: { address: 'Cluj-Napoca' }
+        }
+      ];
+
+      const result = index.parseJobs(rawJobs);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toHaveProperty('url', 'https://jobs.ropardo.ro/jobs/123');
+      expect(result[0]).toHaveProperty('title', 'Senior Developer');
+      expect(result[0]).toHaveProperty('workmode');
+      expect(['remote', 'on-site', 'hybrid']).toContain(result[0].workmode);
+    });
+
+    it('should skip jobs without title', () => {
+      const rawJobs = [
+        { id: '123', title: '', location: 'Cluj' },
+        { id: '456', title: null, location: 'Sibiu' }
+      ];
+
+      const result = index.parseJobs(rawJobs);
+      expect(result).toHaveLength(0);
+    });
+
+    it('should handle empty array', () => {
+      const result = index.parseJobs([]);
       expect(result).toEqual([]);
     });
 
-    it('should handle missing fields gracefully', () => {
-      const html = `<div class="jobs-wrapper col-lg-8">
-        <div class="listing">
-          <div class="list-item">
-            <div class="details">
-              <h4>Test Job</h4>
-            </div>
-          </div>
-        </div>
-      </div>`;
+    it('should use applyUrl as primary URL', () => {
+      const rawJobs = [
+        {
+          id: '123',
+          title: 'Job',
+          applyUrl: 'https://custom-url.com/apply'
+        }
+      ];
 
-      const result = index.parseJobsHTML(html);
+      const result = index.parseJobs(rawJobs);
+      expect(result[0].url).toBe('https://custom-url.com/apply');
+    });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].title).toBe('Test Job');
+    it('should fallback to page URL when applyUrl missing', () => {
+      const rawJobs = [
+        { id: '123', title: 'Job' }
+      ];
+
+      const result = index.parseJobs(rawJobs);
+      expect(result[0].url).toBe('https://jobs.ropardo.ro/jobs/123');
+    });
+
+    it('should use companyData.address as location fallback', () => {
+      const rawJobs = [
+        {
+          id: '123',
+          title: 'Job',
+          location: '',
+          companyData: { address: 'Sibiu, Romania' }
+        }
+      ];
+
+      const result = index.parseJobs(rawJobs);
       expect(result[0].location).toEqual(['Sibiu']);
-      expect(result[0].workmode).toBe('on-site');
-      expect(result[0].tags).toEqual([]);
+    });
+
+    it('should extract tags from department', () => {
+      const rawJobs = [
+        {
+          id: '123',
+          title: 'Job',
+          department: 'Engineering'
+        }
+      ];
+
+      const result = index.parseJobs(rawJobs);
+      expect(result[0].tags).toEqual(['engineering']);
     });
   });
 });

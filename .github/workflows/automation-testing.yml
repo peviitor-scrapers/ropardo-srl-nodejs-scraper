@@ -44,8 +44,6 @@ jobs:
             echo "Running in LIVE mode (will delete expired jobs)..."
             node --no-deprecation tests/validate-ropardo-jobs.js --delete
           fi
-        env:
-          SOLR_AUTH: ${{ secrets.SOLR_AUTH }}
 
   ensure-company-core:
     runs-on: ubuntu-latest
@@ -58,13 +56,13 @@ jobs:
           SOLR_AUTH: ${{ secrets.SOLR_AUTH }}
         run: |
           # Load company identity from single source of truth
-          CIF=$(jq -r '.cif' config/company.json)
-          LEGAL_NAME=$(jq -r '.legalName' config/company.json)
-          BRAND=$(jq -r '.brand' config/company.json)
-          WEBSITE=$(jq -r '.website' config/company.json)
-          CAREER=$(jq -r '.careerUrl' config/company.json)
-          DEFAULT_LOC=$(jq -r '.defaultLocation' config/company.json)
-          SCRAPER_FILE=$(jq -r '.scraperFile' config/company.json)
+          ID=$(jq -r '.id' scraper/config/company.json)
+          COMPANY=$(jq -r '.company' scraper/config/company.json)
+          BRAND=$(jq -r '.brand' scraper/config/company.json)
+          WEBSITE=$(jq -r '.website[0]' scraper/config/company.json)
+          CAREER=$(jq -r '.career[0]' scraper/config/company.json)
+          LOCATION=$(jq -r '.location[0]' scraper/config/company.json)
+          SCRAPER_FILE=$(jq -r '.scraperFile' scraper/config/company.json)
           TODAY=$(date -u +%Y-%m-%d)
 
           # Build expected fields list
@@ -72,7 +70,7 @@ jobs:
 
           # Fetch existing doc
           EXISTING_DOC=$(curl -s --user "${SOLR_AUTH}" \
-            "https://solr.peviitor.ro/solr/company/select?q=id:${CIF}&rows=1" | jq '.response.docs[0] // empty')
+            "https://solr.peviitor.ro/solr/company/select?q=id:${ID}&rows=1" | jq '.response.docs[0] // empty')
 
           if [ -z "$EXISTING_DOC" ]; then
             echo "${BRAND} not found in company core - adding..."
@@ -92,12 +90,12 @@ jobs:
 
           if [ "$NEEDS_PUSH" = true ]; then
             jq -n \
-              --arg id "$CIF" \
-              --arg company "$LEGAL_NAME" \
+              --arg id "$ID" \
+              --arg company "$COMPANY" \
               --arg brand "$BRAND" \
               --arg website "$WEBSITE" \
               --arg career "$CAREER" \
-              --arg loc "$DEFAULT_LOC" \
+              --arg loc "$LOCATION" \
               --arg today "$TODAY" \
               --arg scraperFile "$SCRAPER_FILE" \
               '[{id:$id,company:$company,brand:$brand,status:"activ",location:[$loc],website:[$website],career:[$career],lastScraped:$today,scraperFile:$scraperFile}]' \
@@ -112,7 +110,7 @@ jobs:
           fi
 
           FINAL=$(curl -s --user "${SOLR_AUTH}" \
-            "https://solr.peviitor.ro/solr/company/select?q=id:${CIF}&rows=1" | jq '.response.numFound')
+            "https://solr.peviitor.ro/solr/company/select?q=id:${ID}&rows=1" | jq '.response.numFound')
 
           echo "${BRAND} count after check: $FINAL"
 
@@ -149,8 +147,6 @@ jobs:
           npm run test:unit
           sed -i 's|<title>Test Report</title>|<title>Pre-scrape: Unit Tests — ROPARDO SRL</title>|;s|<h1 id="title">Test Report</h1>|<h1 id="title">Pre-scrape: Unit Tests — ROPARDO SRL</h1>|' test-report.html
           cp test-report.html docs/test-results/pre-scrape-unit.html || true
-        env:
-          SOLR_AUTH: ${{ secrets.SOLR_AUTH }}
           
       - name: Upload Unit Test Results
         uses: actions/upload-artifact@v7
@@ -164,8 +160,6 @@ jobs:
           npm run test:integration
           sed -i 's|<title>Test Report</title>|<title>Pre-scrape: Integration Tests — ROPARDO SRL</title>|;s|<h1 id="title">Test Report</h1>|<h1 id="title">Pre-scrape: Integration Tests — ROPARDO SRL</h1>|' test-report.html
           cp test-report.html docs/test-results/pre-scrape-integration.html || true
-        env:
-          SOLR_AUTH: ${{ secrets.SOLR_AUTH }}
           
       - name: Upload Integration Test Results
         uses: actions/upload-artifact@v7
@@ -179,8 +173,6 @@ jobs:
           npm run test:e2e
           sed -i 's|<title>Test Report</title>|<title>Post-scrape: E2E Tests — ROPARDO SRL</title>|;s|<h1 id="title">Test Report</h1>|<h1 id="title">Post-scrape: E2E Tests — ROPARDO SRL</h1>|' test-report.html
           cp test-report.html docs/test-results/post-scrape.html || true
-        env:
-          SOLR_AUTH: ${{ secrets.SOLR_AUTH }}
           
       - name: Upload E2E Test Results
         uses: actions/upload-artifact@v7
@@ -197,7 +189,6 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOLR_AUTH: ${{ secrets.SOLR_AUTH }}
 
       - name: Upload Consistency Test Results
         uses: actions/upload-artifact@v7

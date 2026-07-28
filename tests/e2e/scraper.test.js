@@ -1,152 +1,122 @@
 import { jest } from '@jest/globals';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
-import * as cheerio from 'cheerio';
+import { normalizeTitle, normalizeLocation, normalizeRemote, normalizeWorkmode, parseJobs, fetchJobs } from '../../scraper/index.js';
+import { searchCompany, getCompanyFromANAF } from '../../scraper/company-data.js';
+import { validateAndGetCompany } from '../../scraper/company.js';
+import { querySOLR, getCompanyByCif } from '../../scraper/api.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
+const HAS_PEVIITOR = !!process.env.PEVIITOR_API_KEY;
 
-const HAS_SOLR = !!process.env.SOLR_AUTH;
-
-function itIfSolr(name, fn, timeout) {
-  if (HAS_SOLR) {
+function itIfPeviitor(name, fn, timeout) {
+  if (HAS_PEVIITOR) {
     return it(name, fn, timeout);
   }
-  return it.skip(`${name} (skipped: SOLR_AUTH not set)`, fn, timeout);
+  return it.skip(`${name} (skipped: PEVIITOR_API_KEY not set)`, fn, timeout);
 }
-
-beforeAll(() => {
-  if (HAS_SOLR) {
-    process.env.SOLR_AUTH = process.env.SOLR_AUTH;
-  }
-});
 
 const TEST_CIF = '5415866';
 const TEST_BRAND = 'ROPARDO';
-const ROPARDO_URL = 'https://jobs.ropardo.ro/';
-const ROMANIAN_CITIES = ['Sibiu'];
+const API_URL = 'https://jobs.ropardo.ro/api/apply/positions';
 
 describe('E2E: Full Scraping Pipeline', () => {
 
-  describe('ROPARDO Jobs Page — Real Data Fetch', () => {
-    let html;
-    let $;
+  describe('Fetch Real Data', () => {
+    let data;
 
     beforeAll(async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-      const res = await fetch(ROPARDO_URL, {
+      const res = await fetch(API_URL, {
         headers: {
           'User-Agent': 'job_seeker_ro_spider',
-          'Accept': 'text/html'
-        },
-        signal: controller.signal
+          'Accept': 'application/json'
+        }
       });
-      clearTimeout(timeoutId);
-      html = await res.text();
-      $ = cheerio.load(html);
-    }, 30000);
+      data = await res.json();
+    }, 25000);
 
-    it('should respond with valid HTML', () => {
-      expect(html.toLowerCase()).toContain('<!doctype html>');
-      expect(html).toContain('Ropardo');
+    it('should return JSON with metadata and results', () => {
+      expect(data).toHaveProperty('metadata');
+      expect(data).toHaveProperty('results');
+      expect(Array.isArray(data.results)).toBe(true);
     });
 
-    it('should have job listings on the page', () => {
-      const items = $('.list-item');
-      expect(items.length).toBeGreaterThan(0);
+    it('should have pagination metadata', () => {
+      expect(data.metadata).toHaveProperty('total');
+      expect(data.metadata.total).toBeGreaterThan(0);
     });
 
-    it('should have jobs with title, location, and URL', () => {
-      const items = $('.list-item');
+    it('should have jobs with title, id, and applyUrl', () => {
+      expect(data.results.length).toBeGreaterThan(0);
 
-      items.each((_, el) => {
-        const $el = $(el);
-        const title = $el.find('h4').first().text().trim();
-        const url = $el.find('a.button.job-details').attr('href');
-        const location = $el.find('.meta-location').text().trim();
-
-        expect(title.length).toBeGreaterThan(0);
-        expect(url).toBeTruthy();
-        expect(url).toMatch(/^https:\/\/jobs\.ropardo\.ro\/job\//);
-        expect(location.toLowerCase()).toContain('sibiu');
-      });
+      const job = data.results[0];
+      expect(job).toHaveProperty('title');
+      expect(typeof job.title).toBe('string');
+      expect(job.title.length).toBeGreaterThan(0);
+      expect(job).toHaveProperty('id');
+      expect(job).toHaveProperty('applyUrl');
+      expect(job.applyUrl).toMatch(/^https?:\/\//);
     });
   });
 
   describe('Parse + Transform Pipeline', () => {
-    let index;
-    let html;
+    let rawJobs;
 
     beforeAll(async () => {
-      index = await import('../../index.js');
-      const res = await fetch(ROPARDO_URL, {
-        headers: {
-          'User-Agent': 'job_seeker_ro_spider',
-          'Accept': 'text/html'
-        }
-      });
-      html = await res.text();
-    }, 15000);
+      rawJobs = await fetchJobs();
+    }, 25000);
 
-    it('should parse ROPARDO HTML into standardized format', () => {
-      const result = index.parseJobsHTML(html);
-
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
-
-      const parsed = result[0];
-      expect(parsed).toHaveProperty('url');
-      expect(parsed.url).toMatch(/^https:\/\/jobs\.ropardo\.ro\/job\//);
-      expect(parsed).toHaveProperty('title');
-      expect(parsed).toHaveProperty('workmode');
-      expect(['remote', 'on-site', 'hybrid']).toContain(parsed.workmode);
-      expect(parsed).toHaveProperty('location');
-      expect(Array.isArray(parsed.location)).toBe(true);
-      expect(parsed).toHaveProperty('tags');
+    it('should fetch jobs from API', () => {
+      expect(Array.isArray(rawJobs)).toBe(true);
+      expect(rawJobs.length).toBeGreaterThan(0);
     });
 
-    it('should map parsed jobs to job model', () => {
-      const parsed = index.parseJobsHTML(html);
-      const model = index.mapToJobModel(parsed[0], TEST_CIF);
+    it('should parse raw jobs into normalized format', () => {
+      const parsed = parseJobs(rawJobs);
 
-      expect(model).toHaveProperty('url');
-      expect(model).toHaveProperty('title');
-      expect(model).toHaveProperty('company');
-      expect(model).toHaveProperty('cif', TEST_CIF);
-      expect(model).toHaveProperty('status', 'scraped');
-      expect(model).toHaveProperty('date');
-      expect(model.url).toMatch(/^https:\/\/jobs\.ropardo\.ro\/job\//);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed.length).toBeGreaterThan(0);
+
+      const job = parsed[0];
+      expect(job).toHaveProperty('url');
+      expect(job.url).toMatch(/^https?:\/\//);
+      expect(job).toHaveProperty('title');
+      expect(typeof job.title).toBe('string');
+      expect(job.title.length).toBeGreaterThan(0);
+      expect(job).toHaveProperty('workmode');
+      expect(['remote', 'on-site', 'hybrid']).toContain(job.workmode);
+      expect(job).toHaveProperty('location');
+      expect(Array.isArray(job.location)).toBe(true);
     });
 
-    it('should transform jobs and filter to Romanian locations', () => {
-      const parsed = index.parseJobsHTML(html);
-      const jobs = parsed.map(j => index.mapToJobModel(j, TEST_CIF));
-
-      const payload = {
-        source: 'ropardo.ro',
-        company: 'ROPARDO SRL',
-        cif: TEST_CIF,
-        jobs
-      };
-
-      const transformed = index.transformJobsForSOLR(payload);
-
-      expect(transformed.company).toBe('ROPARDO SRL');
-      expect(transformed.jobs.length).toBe(jobs.length);
-
-      for (const job of transformed.jobs) {
-        expect(job).toHaveProperty('location');
-        expect(Array.isArray(job.location)).toBe(true);
-        expect(job.location.length).toBeGreaterThan(0);
-        expect(job.workmode).toMatch(/^(remote|on-site|hybrid)$/);
-      }
+    it('should normalize titles by collapsing whitespace', () => {
+      expect(normalizeTitle('  Senior   Developer  ')).toBe('Senior Developer');
+      expect(normalizeTitle(null)).toBe('');
+      expect(normalizeTitle('')).toBe('');
     });
 
-    it('should produce valid job URLs that are accessible', async () => {
-      const parsed = index.parseJobsHTML(html);
+    it('should normalize locations to array', () => {
+      expect(normalizeLocation('Sibiu')).toEqual(['Sibiu']);
+      expect(normalizeLocation('Sibiu, Romania')).toEqual(['Sibiu']);
+      expect(normalizeLocation('remote')).toEqual([]);
+      expect(normalizeLocation(null)).toEqual([]);
+    });
+
+    it('should normalize remote flag', () => {
+      expect(normalizeRemote('remote')).toBe(true);
+      expect(normalizeRemote('Remote')).toBe(true);
+      expect(normalizeRemote('on-site')).toBe(false);
+      expect(normalizeRemote(null)).toBe(false);
+    });
+
+    it('should normalize workmode', () => {
+      expect(normalizeWorkmode('remote')).toBe('remote');
+      expect(normalizeWorkmode('on-site')).toBe('on-site');
+      expect(normalizeWorkmode('on site')).toBe('on-site');
+      expect(normalizeWorkmode('hybrid')).toBe('hybrid');
+      expect(normalizeWorkmode(null)).toBe('on-site');
+    });
+
+    it('should produce valid job URLs', async () => {
+      const parsed = parseJobs(rawJobs);
 
       for (const job of parsed.slice(0, 2)) {
         const res = await fetch(job.url, {
@@ -158,99 +128,80 @@ describe('E2E: Full Scraping Pipeline', () => {
     }, 30000);
   });
 
-  describe('Company Validation Path', () => {
-    let anaf;
-    let company;
+  describe('Company Validation', () => {
+    it('should find ROPARDO in company search', async () => {
+      const results = await searchCompany(TEST_BRAND);
 
-    beforeAll(async () => {
-      anaf = await import('../../src/anaf.js');
-      company = await import('../../company.js');
-    });
-
-    it('should find ROPARDO in ANAF and validate active status', async () => {
-      const results = await anaf.searchCompany(TEST_BRAND);
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
 
       const ropardo = results.find(c =>
-        c.name.toUpperCase().startsWith(TEST_BRAND + ' ') &&
-        c.statusLabel === 'Funcțiune'
+        (c.name || '').toUpperCase().startsWith(TEST_BRAND) ||
+        (c.cui || '').toString() === TEST_CIF
       );
       expect(ropardo).toBeDefined();
-      expect(ropardo.cui.toString()).toBe(TEST_CIF);
-
-      const anafData = await anaf.getCompanyFromANAF(TEST_CIF);
-      expect(anafData).toBeDefined();
-      expect(anafData.inactive).toBe(false);
     }, 30000);
 
-    itIfSolr('should run full validation and report active status with job count', async () => {
-      const result = await company.validateAndGetCompany();
+    it('should return empty array for non-existent brand', async () => {
+      const results = await searchCompany('ThisBrandDoesNotExistXYZ123');
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBe(0);
+    }, 15000);
+
+    it('should fetch company details by valid CIF from ANAF', async () => {
+      const data = await getCompanyFromANAF(TEST_CIF);
+
+      expect(data).toBeDefined();
+      expect(data.cui).toBe(5415866);
+      expect(data.name).toBe('ROPARDO SRL');
+      expect(data).toHaveProperty('inactive', false);
+    }, 30000);
+
+    it('should throw for invalid CIF', async () => {
+      await expect(getCompanyFromANAF('00000000')).rejects.toThrow();
+    }, 60000);
+  });
+
+  describe('Peviitor API', () => {
+    it('should run full validation and report active status', async () => {
+      const result = await validateAndGetCompany();
 
       expect(result.status).toBe('active');
       expect(result.company).toBe('ROPARDO SRL');
       expect(result.cif).toBe(TEST_CIF);
-
-      if (result.existingJobsCount === 0) {
-        console.log('⚠️ No ROPARDO jobs in Solr — skipping job count assertion');
-        return;
-      }
-      expect(result.existingJobsCount).toBeGreaterThan(0);
     }, 30000);
   });
 
-  describe('Inactive Company Handling', () => {
-    let anaf;
-
-    beforeAll(async () => {
-      anaf = await import('../../src/anaf.js');
-    });
-
-    it('should detect inactive/radiated companies via ANAF', async () => {
-      const results = await anaf.searchCompany('ROPARDO');
-
-      const nonActive = results.find(c => c.statusLabel !== 'Funcțiune');
-
-      if (nonActive) {
-        try {
-          const anafData = await anaf.getCompanyFromANAF(nonActive.cui.toString());
-          expect(anafData).toBeDefined();
-          if (anafData.inactive !== undefined) {
-            expect(anafData.inactive).toBe(true);
-          }
-        } catch {
-          expect(nonActive.statusLabel).toMatch(/Radiată|Inactiv|Suspendat|Faliment/);
-        }
-      }
-    }, 30000);
-  });
-
-  describe('SOLR Data Verification', () => {
-    let solr;
-
-    beforeAll(async () => {
-      solr = await import('../../solr.js');
-    });
-
-    itIfSolr('should have ROPARDO jobs in SOLR with correct company name', async () => {
-      const result = await solr.querySOLR(TEST_CIF);
+  describe('API Data Verification', () => {
+    itIfPeviitor('should query jobs by CIF and return valid data', async () => {
+      const result = await querySOLR(TEST_CIF);
 
       if (result.numFound === 0) {
-        console.log('⚠️ No ROPARDO jobs in Solr — skipping SOLR data verification');
+        console.log('No ROPARDO jobs in Solr — skipping job field assertions');
         return;
       }
 
-      for (const job of result.docs) {
-        expect(job.company).toBe('ROPARDO SRL');
-        expect(job.cif).toBe(TEST_CIF);
-      }
+      expect(result.numFound).toBeGreaterThan(0);
+      expect(Array.isArray(result.docs)).toBe(true);
+
+      const job = result.docs[0];
+      expect(job).toHaveProperty('url');
+      expect(job).toHaveProperty('title');
+      expect(job).toHaveProperty('company', 'ROPARDO SRL');
+      expect(job).toHaveProperty('cif', TEST_CIF);
+      expect(job).toHaveProperty('status');
+      expect(job).toHaveProperty('location');
     }, 15000);
 
-    itIfSolr('should have ROPARDO company core entry with required fields', async () => {
-      const result = await solr.queryCompanySOLR(`id:${TEST_CIF}`);
+    itIfPeviitor('should query company core by CIF', async () => {
+      const result = await getCompanyByCif(TEST_CIF);
 
-      expect(result.numFound).toBe(1);
-      const ropardo = result.docs[0];
-      expect(ropardo.company).toBe('ROPARDO SRL');
-      expect(ropardo.status).toBe('activ');
+      expect(result).toBeDefined();
+      expect(result.id).toBe(TEST_CIF);
+      expect(result.company).toBe('ROPARDO SRL');
+      expect(result.status).toBe('activ');
+      expect(Array.isArray(result.location)).toBe(true);
+      expect(result.lastScraped).toMatch(/^\d{4}-\d{2}-\d{2}/);
     }, 15000);
   });
 });

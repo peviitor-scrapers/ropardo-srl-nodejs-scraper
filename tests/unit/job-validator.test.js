@@ -10,7 +10,7 @@ describe('src/job-validator.js', () => {
   let validator;
 
   beforeAll(async () => {
-    validator = await import('../../src/job-validator.js');
+    validator = await import('../../scraper/job-validator.js');
   });
 
   beforeEach(() => {

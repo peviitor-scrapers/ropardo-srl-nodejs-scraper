@@ -1,0 +1,17 @@
+{
+  "id": 5415866,
+  "company": "ROPARDO SRL",
+  "brand": "ROPARDO",
+  "website": [
+    "https://www.ropardo.ro"
+  ],
+  "career": [
+    "https://jobs.ropardo.ro"
+  ],
+  "status": "activ",
+  "location": [
+    "Romania"
+  ],
+  "lastScraped": "2026-07-28",
+  "scraperFile": "ropardo-srl-nodejs-scraper"
+}
