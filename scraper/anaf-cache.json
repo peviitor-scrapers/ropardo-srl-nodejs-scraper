@@ -1,13 +1,13 @@
 {
-  "validatedAt": "2026-07-28T07:05:00.416Z",
+  "validatedAt": "2026-07-28T07:21:23.028Z",
   "anaf": null,
   "peviitor": {
-    "id": "5415866",
+    "id": "05415866",
     "company": "ROPARDO SRL",
     "brand": "ROPARDO",
     "status": "activ",
     "location": [
-      "Str. RECONSTRUCTIEI, 2 A, Municipiul Sibiu, Sibiu"
+      "Romania"
     ],
     "website": [
       "https://www.ropardo.ro"
@@ -15,7 +15,7 @@
     "career": [
       "https://jobs.ropardo.ro"
     ],
-    "lastScraped": "2026-07-26",
-    "scraperFile": "https://raw.githubusercontent.com/sebiboga/ropardo-srl-nodejs-scraper/main/.github/workflows/job-seeker-ro-spider.yml"
+    "lastScraped": "2026-07-28",
+    "scraperFile": "ropardo-srl-nodejs-scraper"
   }
 }

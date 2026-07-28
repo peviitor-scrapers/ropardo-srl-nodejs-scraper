@@ -81,7 +81,7 @@ describe('company.js', () => {
 
       const result = await company.validateAndGetCompany();
 
-      expect(result).toHaveProperty('status', 'active');
+      expect(result).toHaveProperty('status', 'activ');
       expect(result).toHaveProperty('company', 'ROPARDO SRL');
       expect(result).toHaveProperty('cif');
       expect(result).toHaveProperty('existingJobsCount');

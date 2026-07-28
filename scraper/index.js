@@ -373,6 +373,7 @@ async function main() {
 
     console.log("\n=== Step 5: Summary ===");
 
+    await new Promise(r => setTimeout(r, 2000));
     const finalResult = await querySOLR(COMPANY_ID);
     console.log(`\n=== SUMMARY ===`);
     console.log(`Jobs existing in SOLR before scrape: ${existingCount}`);

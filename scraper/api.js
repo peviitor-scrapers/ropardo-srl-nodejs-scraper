@@ -109,7 +109,7 @@ export async function upsertCompany(companyDoc) {
       "Content-Type": "application/json",
       "User-Agent": "job_seeker_ro_spider"
     },
-    body: JSON.stringify(companyDoc)
+    body: JSON.stringify({ ...companyDoc, id: padCif(companyDoc.id) })
   });
 
   if (!res.ok) {
@@ -228,13 +228,18 @@ export async function deleteJobByUrl(url) {
 export async function upsertJobs(jobs) {
   const url = `${API_BASE_URL}/scraper/jobs/upload/`;
 
+  const paddedJobs = jobs.map(job => ({
+    ...job,
+    cif: padCif(job.cif)
+  }));
+
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "User-Agent": "job_seeker_ro_spider"
     },
-    body: JSON.stringify(jobs)
+    body: JSON.stringify(paddedJobs)
   });
 
   if (!res.ok) {

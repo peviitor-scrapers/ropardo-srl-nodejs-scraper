@@ -307,7 +307,7 @@ export async function validateAndGetCompany() {
   console.log(`\n✅ Company validated: ${company}, CIF: ${cif}`);
   console.log("Ready to scrape jobs...\n");
   
-  return { status: "active", company, cif, existingJobsCount: solrResult.numFound, address, anafData };
+  return { status: "activ", company, cif, existingJobsCount: solrResult.numFound, address, anafData };
 }
 
 // ============================================================================

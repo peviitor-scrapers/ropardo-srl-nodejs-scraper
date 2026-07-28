@@ -151,7 +151,7 @@ describe('E2E: Full Scraping Pipeline', () => {
     it('should run full validation and report active status', async () => {
       const result = await validateAndGetCompany();
 
-      expect(result.status).toBe('active');
+      expect(result.status).toBe('activ');
       expect(result.company).toBe('ROPARDO SRL');
       expect(result.cif).toBe(TEST_CIF);
     }, 30000);
