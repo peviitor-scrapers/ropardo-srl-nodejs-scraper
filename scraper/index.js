@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { validateAndGetCompany } from "./company.js";
-import { querySOLR, upsertJobs, upsertCompany } from "./api.js";
+import { querySOLR, upsertJobs, upsertCompany, deleteJobByUrl } from "./api.js";
 import { generateJobsMarkdown } from "./markdown-generator.js";
 import companyConfig from "./config/company.js";
 
@@ -117,6 +117,7 @@ async function fetchJobs() {
 
       allJobs.push({
         title,
+        url: jobUrl,
         applyUrl,
         location: workplace || undefined,
         employment: employment || undefined
@@ -128,6 +129,44 @@ async function fetchJobs() {
 
   console.log(`Fetched ${allJobs.length} jobs from ROPARDO website`);
   return allJobs;
+}
+
+// ============================================================================
+// STUDENT PROGRAMS — scrape from ropardo.ro/careers/for-students/
+// ============================================================================
+
+const STUDENTS_URL = "https://ropardo.ro/careers/for-students/";
+
+async function fetchStudentPrograms() {
+  console.log("Fetching ROPARDO student programs...");
+  const html = await fetchHTML(STUDENTS_URL);
+  const $ = cheerio.load(html);
+
+  const programs = [];
+  const seen = new Set();
+
+  $("h2, h3").each((_, el) => {
+    const text = normalizeTitle($(el).text());
+    if (!text || text.length < 4) return;
+    if (/^(careers|do it|recreate|start by|we like|open pos|\u2026|online\.)/i.test(text)) return;
+
+    const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const anchor = `#${slug}`;
+    const url = `${STUDENTS_URL}${anchor}`;
+
+    if (!seen.has(url)) {
+      seen.add(url);
+      programs.push({
+        title: text,
+        url,
+        location: "Sibiu",
+        employment: "Full-time/Part-time"
+      });
+    }
+  });
+
+  console.log(`Found ${programs.length} student program(s)`);
+  return programs;
 }
 
 // ============================================================================
@@ -154,7 +193,7 @@ function parseJobs(rawJobs) {
     const tags = [];
     if (raw.department) tags.push(raw.department.toLowerCase());
 
-    const url = raw.applyUrl || raw.url;
+    const url = raw.url || raw.applyUrl;
 
     jobs.push({
       url,
@@ -285,9 +324,10 @@ async function main() {
   try {
     fs.mkdirSync("scraper", { recursive: true });
 
-    console.log("=== Step 1: Get existing jobs count ===");
+    console.log("=== Step 1: Get existing jobs from SOLR ===");
     const existingResult = await querySOLR(COMPANY_ID);
     const existingCount = existingResult.numFound;
+    const existingUrls = new Set(existingResult.docs.map(doc => doc.url).filter(Boolean));
     console.log(`Found ${existingCount} existing jobs in SOLR`);
 
     console.log("=== Step 2: Validate company via ANAF ===");
@@ -319,7 +359,16 @@ async function main() {
     const rawApiJobs = await fetchJobs();
     let allRawJobs = parseJobs(rawApiJobs);
     const scrapedCount = allRawJobs.length;
-    console.log(`Jobs scraped from ROPARDO API: ${scrapedCount}`);
+    console.log(`Jobs scraped from ROPARDO website: ${scrapedCount}`);
+
+    const studentPrograms = await fetchStudentPrograms();
+    const parsedStudentPrograms = parseJobs(studentPrograms);
+    for (const prog of parsedStudentPrograms) {
+      if (!allRawJobs.find(j => j.url === prog.url)) {
+        allRawJobs.push(prog);
+      }
+    }
+    console.log(`Student programs added: ${parsedStudentPrograms.length}`);
 
     if (!testOnlyOnePage) {
       const anofmJobs = await searchANOFM(localCif);
@@ -371,6 +420,21 @@ async function main() {
     console.log("\n=== Step 4: Upsert jobs to SOLR ===");
     await upsertJobs(transformedPayload.jobs);
 
+    // Step 4.5: Delete stale jobs — URLs in SOLR but no longer on the website
+    const scrapedUrls = new Set(transformedPayload.jobs.map(job => job.url));
+    const staleUrls = [...existingUrls].filter(url => !scrapedUrls.has(url));
+
+    if (staleUrls.length > 0) {
+      console.log(`\n=== Step 4.5: Delete ${staleUrls.length} stale job(s) ===`);
+      for (const url of staleUrls) {
+        console.log(`  Deleting: ${url}`);
+        await deleteJobByUrl(url);
+      }
+      console.log(`✅ Deleted ${staleUrls.length} stale job(s)`);
+    } else {
+      console.log("\n✅ No stale jobs to delete");
+    }
+
     console.log("\n=== Step 5: Summary ===");
 
     await new Promise(r => setTimeout(r, 2000));
@@ -378,6 +442,7 @@ async function main() {
     console.log(`\n=== SUMMARY ===`);
     console.log(`Jobs existing in SOLR before scrape: ${existingCount}`);
     console.log(`Jobs scraped from ROPARDO website: ${scrapedCount}`);
+    console.log(`Stale jobs deleted: ${staleUrls.length}`);
     console.log(`Jobs in SOLR after scrape: ${finalResult.numFound}`);
     console.log(`====================`);
 
@@ -390,7 +455,7 @@ async function main() {
   }
 }
 
-export { normalizeTitle, normalizeLocation, normalizeRemote, normalizeWorkmode, extractTeamFromTitle, extractJobTypeFromTitle, normalizeJobType, parseJobs, fetchJobs, main };
+export { normalizeTitle, normalizeLocation, normalizeRemote, normalizeWorkmode, extractTeamFromTitle, extractJobTypeFromTitle, normalizeJobType, parseJobs, fetchJobs, fetchStudentPrograms, main };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main();
