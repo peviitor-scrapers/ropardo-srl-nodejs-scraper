@@ -488,8 +488,9 @@ async function loadStats() {
       const docs = data.response?.docs || [];
       if (docs.length === 0) { hasMore = false; break; }
 
+      const cifPadded = String(COMPANY_CIF).padStart(8, "0");
       docs.forEach((job, idx) => {
-        if (job.cif !== COMPANY_CIF) return;
+        if (String(job.cif).padStart(8, "0") !== cifPadded) return;
         ourCount++;
         const div = document.createElement("div");
         div.className = "job-item";

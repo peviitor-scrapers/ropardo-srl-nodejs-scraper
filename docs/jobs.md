@@ -9,12 +9,12 @@
 | Status | activ |
 | Location | Romania |
 | Website | [https://www.ropardo.ro](https://www.ropardo.ro) |
-| Careers | [https://jobs.ropardo.ro](https://jobs.ropardo.ro) |
+| Careers | [https://jobs.ropardo.ro](https://jobs.ropardo.ro), [https://ropardo.ro/careers/for-students/](https://ropardo.ro/careers/for-students/) |
 | Last Scraped | 2026-07-28 |
 
 ## Current Job Listings (8)
 
-_Generated: 2026-07-28T09:27:30.201Z_
+_Generated: 2026-07-28T08:42:35.834Z_
 
 ### Junior BI Developer: Transforming Data into Business Insights - open for students
 
