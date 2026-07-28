@@ -33,6 +33,17 @@ const API_BASE_URL = "https://api.peviitor.ro/v1";
 const TIMEOUT = 10000;
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Zero-pads a CIF to exactly 8 digits (Peviitor API requirement)
+ */
+function padCif(cif) {
+  return String(cif).padStart(8, "0");
+}
+
+// ============================================================================
 // COMPANY OPERATIONS - Via peviitor API
 // ============================================================================
 
@@ -42,7 +53,7 @@ const TIMEOUT = 10000;
  * @returns {Promise<Object|null>} - Company data or null if not found
  */
 export async function getCompanyByCif(cif) {
-  const url = `${API_BASE_URL}/firme/company/?cif=${encodeURIComponent(cif)}`;
+  const url = `${API_BASE_URL}/firme/company/?cif=${encodeURIComponent(padCif(cif))}`;
   const res = await fetch(url, {
     headers: {
       "User-Agent": "job_seeker_ro_spider"
@@ -124,7 +135,7 @@ export async function upsertCompany(companyDoc) {
  * @returns {Promise<Object>} - { numFound, docs } normalized to match direct Solr format
  */
 export async function querySOLR(cif) {
-  const url = `${API_BASE_URL}/scraper/jobs/?cif=${encodeURIComponent(cif)}&rows=500`;
+  const url = `${API_BASE_URL}/scraper/jobs/?cif=${encodeURIComponent(padCif(cif))}&rows=500`;
   const res = await fetch(url, {
     headers: {
       "User-Agent": "job_seeker_ro_spider"
@@ -161,7 +172,7 @@ export async function deleteJobsByCIF(cif) {
       "Content-Type": "application/json",
       "User-Agent": "job_seeker_ro_spider"
     },
-    body: JSON.stringify({ cif })
+    body: JSON.stringify({ cif: padCif(cif) })
   });
 
   if (res.status === 404) {
