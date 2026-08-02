@@ -6,15 +6,15 @@
 |-------|-------|
 | CIF | 5415866 |
 | Brand | ROPARDO |
-| Status | activ |
-| Location | Romania |
+| Status | active |
+| Location | Municipiul Sibiu, Sibiu |
 | Website | [https://www.ropardo.ro](https://www.ropardo.ro) |
 | Careers | [https://jobs.ropardo.ro](https://jobs.ropardo.ro), [https://ropardo.ro/careers/for-students/](https://ropardo.ro/careers/for-students/) |
-| Last Scraped | 2026-08-01 |
+| Last Scraped | 2026-08-02 |
 
 ## Current Job Listings (8)
 
-_Generated: 2026-08-01T08:02:20.834Z_
+_Generated: 2026-08-02T09:08:22.870Z_
 
 ### Junior BI Developer: Transforming Data into Business Insights - open for students
 
