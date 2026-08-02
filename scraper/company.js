@@ -22,7 +22,6 @@ const COMPANY_BRAND = companyConfig.brand;
 const COMPANY_LEGAL_NAME = companyConfig.company;
 
 const CACHE_MAX_AGE_DAYS = 7;
-const ROOT_CACHE_PATH = "company.json";
 const TMP_CACHE_PATH = "tmp/company.json";
 
 // ============================================================================
@@ -73,9 +72,6 @@ function saveCompanyData(anafData, peviitorData) {
   fs.writeFileSync(TMP_CACHE_PATH, json, "utf-8");
   console.log(`\n✅ Saved company data to ${TMP_CACHE_PATH}`);
 
-  fs.writeFileSync(ROOT_CACHE_PATH, json, "utf-8");
-  console.log(`✅ Updated root cache ${ROOT_CACHE_PATH}\n`);
-
   return companyData;
 }
 
@@ -91,20 +87,18 @@ function isCacheFresh(data) {
 }
 
 function loadCachedCompanyData() {
-  for (const cachePath of [TMP_CACHE_PATH, ROOT_CACHE_PATH]) {
-    if (!fs.existsSync(cachePath)) continue;
-    try {
-      const data = JSON.parse(fs.readFileSync(cachePath, "utf-8"));
-      if (!isValidCache(data)) continue;
-      if (isCacheFresh(data)) {
-        console.log(`Found fresh cached company data in ${cachePath}`);
-        return data;
-      }
-      console.log(`Found stale cached company data in ${cachePath} (older than ${CACHE_MAX_AGE_DAYS} days)`);
-      return { ...data, _stale: true };
-    } catch (e) {
-      console.log(`Warning: Could not parse ${cachePath}`);
+  if (!fs.existsSync(TMP_CACHE_PATH)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(TMP_CACHE_PATH, "utf-8"));
+    if (!isValidCache(data)) return null;
+    if (isCacheFresh(data)) {
+      console.log(`Found fresh cached company data in ${TMP_CACHE_PATH}`);
+      return data;
     }
+    console.log(`Found stale cached company data in ${TMP_CACHE_PATH} (older than ${CACHE_MAX_AGE_DAYS} days)`);
+    return { ...data, _stale: true };
+  } catch (e) {
+    console.log(`Warning: Could not parse ${TMP_CACHE_PATH}`);
   }
   return null;
 }
