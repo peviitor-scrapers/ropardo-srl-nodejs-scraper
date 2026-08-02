@@ -11,7 +11,7 @@ The Maintenance Agent keeps the scraper healthy, up-to-date, and bug-free. It mo
 Before any work, check open issues:
 
 ```bash
-gh issue list --repo sebiboga/ropardo-srl-nodejs-scraper --state open
+gh issue list --repo peviitor-scrapers/ropardo-srl-nodejs-scraper --state open
 ```
 
 - Prioritize `critical` label issues first

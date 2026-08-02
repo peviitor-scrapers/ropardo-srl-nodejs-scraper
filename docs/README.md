@@ -22,7 +22,7 @@ job_seeker_ro_spider
 3. **Scrape-uiește job-urile** — extrage lista completă de job-uri de pe portalul ROPARDO (https://ropardo.ro/careers/)
 4. **Transformă datele** — normalizează locațiile (doar orașe românești), tag-urile (lowercase), workmode-ul (remote/on-site/hybrid)
 5. **Stochează în Peviitor** — upsert prin API-ul Peviitor (job-uri și date companie)
-6. **Generează docs/jobs.md** — fișier markdown cu informații companie + toate job-urile curente, publicat pe [GitHub Pages](https://sebiboga.github.io/ropardo-srl-nodejs-scraper/jobs.md)
+6. **Generează docs/jobs.md** — fișier markdown cu informații companie + toate job-urile curente, publicat pe [GitHub Pages](https://peviitor-scrapers.github.io/ropardo-srl-nodejs-scraper/jobs.md)
 
 ## Structură proiect
 

@@ -14,5 +14,5 @@
     "Romania"
   ],
   "lastScraped": "2026-07-28",
-  "scraperFile": "https://github.com/sebiboga/ropardo-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml"
+  "scraperFile": "https://github.com/peviitor-scrapers/ropardo-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml"
 }

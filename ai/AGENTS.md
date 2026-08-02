@@ -34,7 +34,7 @@ When polling a workflow run with `until [ "$(gh run view ID --json status -q .st
 
 **Always specify the repo explicitly:**
 ```bash
-gh run view <RUN_ID> --repo sebiboga/<derived-repo>-nodejs-scraper --json status -q .status
+gh run view <RUN_ID> --repo peviitor-scrapers/<derived-repo>-nodejs-scraper --json status -q .status
 ```
 
 Before starting any `gh run watch` or polling loop in the background, sanity-check:
