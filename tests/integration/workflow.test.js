@@ -1,18 +1,56 @@
 import { jest } from '@jest/globals';
+import fetch from 'node-fetch';
 import { searchCompany, getCompanyFromANAF, getCompanyFromANAFWithFallback } from '../../scraper/anaf.js';
 import { validateAndGetCompany } from '../../scraper/company.js';
 import { querySOLR, getCompanyByCif } from '../../scraper/api.js';
 
-const HAS_PEVIITOR = !!process.env.PEVIITOR_API_KEY;
+const API_BASE = 'https://api.peviitor.ro/v1';
+const ROPARDO_CIF = '5415866';
 
-function itIfPeviitor(name, fn, timeout) {
-  if (HAS_PEVIITOR) {
-    return it(name, fn, timeout);
+let HAS_API = false;
+
+async function checkApiAvailability() {
+  try {
+    const res = await fetch(`${API_BASE}/scraper/jobs/?cif=${ROPARDO_CIF}&rows=1`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok || res.status === 400;
+  } catch {
+    return false;
   }
-  return it.skip(`${name} (skipped: PEVIITOR_API_KEY not set)`, fn, timeout);
 }
 
-const ROPARDO_CIF = '5415866';
+let HAS_ANAF = false;
+
+async function checkAnafAvailability() {
+  try {
+    const res = await fetch('https://demoanaf.ro/api/search?q=test', {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function itIfApi(name, fn, timeout) {
+  if (HAS_API) {
+    return it(name, fn, timeout);
+  }
+  return it.skip(`${name} (skipped: API unavailable)`, fn, timeout);
+}
+
+function itIfAnaf(name, fn, timeout) {
+  if (HAS_ANAF) {
+    return it(name, fn, timeout);
+  }
+  return it.skip(`${name} (skipped: ANAF API unavailable)`, fn, timeout);
+}
+
+beforeAll(async () => {
+  [HAS_API, HAS_ANAF] = await Promise.all([checkApiAvailability(), checkAnafAvailability()]);
+});
 
 describe('Integration: API Workflow', () => {
 
@@ -72,7 +110,7 @@ describe('Integration: API Workflow', () => {
   });
 
   describe('Peviitor API Core', () => {
-    itIfPeviitor('should query company core by CIF', async () => {
+    itIfApi('should query company core by CIF', async () => {
       const result = await getCompanyByCif(ROPARDO_CIF);
 
       expect(result).toBeDefined();
@@ -84,7 +122,7 @@ describe('Integration: API Workflow', () => {
       expect(result.lastScraped).toMatch(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+Z?)?)?$/);
     }, 15000);
 
-    itIfPeviitor('should have required company model fields', async () => {
+    itIfApi('should have required company model fields', async () => {
       const result = await getCompanyByCif(ROPARDO_CIF);
 
       expect(result).toHaveProperty('id', ROPARDO_CIF);
@@ -101,7 +139,7 @@ describe('Integration: API Workflow', () => {
       expect(result).toHaveProperty('scraperFile');
     }, 15000);
 
-    itIfPeviitor('should have optional field (career) if present', async () => {
+    itIfApi('should have optional field (career) if present', async () => {
       const result = await getCompanyByCif(ROPARDO_CIF);
 
       if (result.career !== undefined) {
@@ -110,7 +148,7 @@ describe('Integration: API Workflow', () => {
       }
     }, 15000);
 
-    itIfPeviitor('should have optional field (group) if present', async () => {
+    itIfApi('should have optional field (group) if present', async () => {
       const result = await getCompanyByCif(ROPARDO_CIF);
 
       if (result.group !== undefined) {
@@ -118,7 +156,7 @@ describe('Integration: API Workflow', () => {
       }
     }, 15000);
 
-    itIfPeviitor('should query jobs by CIF and return valid data', async () => {
+    itIfApi('should query jobs by CIF and return valid data', async () => {
       const result = await querySOLR(ROPARDO_CIF);
 
       if (result.numFound === 0) {
@@ -138,7 +176,7 @@ describe('Integration: API Workflow', () => {
       expect(job).toHaveProperty('location');
     }, 15000);
 
-    itIfPeviitor('should not have duplicate URLs for same CIF', async () => {
+    itIfApi('should not have duplicate URLs for same CIF', async () => {
       const result = await querySOLR(ROPARDO_CIF);
 
       const urls = result.docs.map(j => j.url);
@@ -146,7 +184,7 @@ describe('Integration: API Workflow', () => {
       expect(uniqueUrls.size).toBe(result.docs.length);
     }, 15000);
 
-    itIfPeviitor('should have valid status values for all jobs', async () => {
+    itIfApi('should have valid status values for all jobs', async () => {
       const validStatuses = ['scraped', 'tested', 'verified', 'published'];
       const result = await querySOLR(ROPARDO_CIF);
 
@@ -155,7 +193,7 @@ describe('Integration: API Workflow', () => {
       }
     }, 15000);
 
-    itIfPeviitor('should have valid CIF format for all jobs', async () => {
+    itIfApi('should have valid CIF format for all jobs', async () => {
       const result = await querySOLR(ROPARDO_CIF);
 
       for (const job of result.docs) {
@@ -179,7 +217,7 @@ describe('Integration: API Workflow', () => {
       expect(anafData.inactive).toBe(false);
     }, 30000);
 
-    itIfPeviitor('should have matching CIF in company core', async () => {
+    itIfApi('should have matching CIF in company core', async () => {
       const companyResult = await validateAndGetCompany();
       const solrResult = await getCompanyByCif(ROPARDO_CIF);
 
@@ -188,7 +226,7 @@ describe('Integration: API Workflow', () => {
       expect(solrResult.company).toBe('ROPARDO SRL');
     }, 30000);
 
-    itIfPeviitor('should validate company and query SOLR for existing jobs', async () => {
+    itIfApi('should validate company and query SOLR for existing jobs', async () => {
       const companyResult = await validateAndGetCompany();
 
       expect(companyResult.status).toBe('active');

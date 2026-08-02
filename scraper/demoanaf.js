@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * CLI entry point for the Company Data module (ANAF + CUIScan + CUIFirma)
+ * CLI entry point for the Company Data module (ANAF + CUIFirma MCP)
  * 
  * Usage:
  *   node demoanaf.js search <brand>    - Search for companies
@@ -32,7 +32,7 @@ if (args[0] === "search") {
       process.exit(1);
     });
 } else {
-  const cif = args[0] || companyConfig.cif;
+  const cif = args[0] || companyConfig.id;
   console.log(`=== Fetching company data for CIF: ${cif} ===\n`);
 
   getCompanyFromANAF(cif)

@@ -57,7 +57,7 @@ When working on this scraper:
    - tags: lowercase, no diacritics
    - company: uppercase
 10. **Upsert to API** - Import/update jobs via Peviitor API
-11. **Verify URLs** - Check existing job URLs still work, delete 404s
+11. **Delete stale jobs** - Remove jobs no longer on the website (in API but not scraped)
 
 ## Running the Scraper
 
@@ -77,10 +77,10 @@ When running `node scraper/index.js`, the following steps happen automatically:
 3. **Scrape jobs** - Extract jobs from ROPARDO careers page (Romania only)
 4. **Transform for API** - Fix locations (only Romanian cities), normalize fields
 5. **Upsert to API** - Add/update jobs (API handles duplicates by URL)
-6. **Verify URLs** - Delete job URLs that no longer work (404s)
+6. **Delete stale jobs** - Remove jobs in API but no longer on the website
 7. **Show Summary** - Log job counts
 
-**Important**: We do NOT delete all existing jobs! We only upsert ROPARDO jobs and delete individual URLs that returned 404. This preserves jobs from other sources (ANOFM, etc).
+**Important**: We do NOT delete all existing jobs! We only upsert ROPARDO jobs and delete stale URLs (in API but no longer on the website). This preserves jobs from other sources (ANOFM, etc).
 
 ## Workflow Flowchart
 
@@ -126,7 +126,7 @@ generateJobsMarkdown() → docs/jobs.md
 | `scraper/config/company.json` | **Single source of truth** for company identity (CIF, brand, URLs, API params) |
 | `scraper/config/company.js` | ESM wrapper that loads `scraper/config/company.json` for Node code |
 | `scraper/config/scraper.js` | ESM wrapper that loads `scraper/config/scraper.json` |
-| `scraper/index.js` | Main entry point - full workflow: validate company → scrape → transform → upsert → verify URLs → generate docs/jobs.md |
+| `scraper/index.js` | Main entry point - full workflow: validate company → scrape → transform → upsert → delete stale → generate docs/jobs.md |
 | `scraper/company.js` | Validates company via ANAF + CUIFirma + Peviitor; caches in `tmp/company.json` (7-day TTL) |
 | `scraper/anaf.js` | Multi-source company data module - ANAF (primary) + CUIFirma (MCP fallback + search) |
 | `scraper/demoanaf.js` | CLI entry point for anaf.js (thin wrapper) |

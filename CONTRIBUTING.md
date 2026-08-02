@@ -13,8 +13,8 @@ Pentru a deriva un scraper nou pentru altă companie, urmează instrucțiunile d
 - Use ES6+ modules (`type: module` in `package.json`)
 - Add tests for new features in the matching `tests/<level>/` folder
 - Ensure all tests pass before submitting PR
-- Update relevant `.md` files (especially `files.md` and `AGENTS.md`) when adding new files
-- Reference a GitHub issue in every commit (see [ISSUES.md](ISSUES.md))
+- Update relevant `.md` files (especially [`ai/files.md`](ai/files.md) and [`ai/AGENTS.md`](ai/AGENTS.md)) when adding new files
+- Reference a GitHub issue in every commit
 
 ## Development Setup
 

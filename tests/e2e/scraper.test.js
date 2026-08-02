@@ -5,18 +5,55 @@ import { searchCompany, getCompanyFromANAF } from '../../scraper/anaf.js';
 import { validateAndGetCompany } from '../../scraper/company.js';
 import { querySOLR, getCompanyByCif } from '../../scraper/api.js';
 
-const HAS_PEVIITOR = !!process.env.PEVIITOR_API_KEY;
-
-function itIfPeviitor(name, fn, timeout) {
-  if (HAS_PEVIITOR) {
-    return it(name, fn, timeout);
-  }
-  return it.skip(`${name} (skipped: PEVIITOR_API_KEY not set)`, fn, timeout);
-}
-
+const API_BASE = 'https://api.peviitor.ro/v1';
 const TEST_CIF = '5415866';
 const TEST_BRAND = 'ROPARDO';
 const CAREERS_URL = 'https://ropardo.ro/careers/';
+
+let HAS_API = false;
+
+async function checkApiAvailability() {
+  try {
+    const res = await fetch(`${API_BASE}/scraper/jobs/?cif=${TEST_CIF}&rows=1`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok || res.status === 400;
+  } catch {
+    return false;
+  }
+}
+
+let HAS_ANAF = false;
+
+async function checkAnafAvailability() {
+  try {
+    const res = await fetch('https://demoanaf.ro/api/search?q=test', {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function itIfApi(name, fn, timeout) {
+  if (HAS_API) {
+    return it(name, fn, timeout);
+  }
+  return it.skip(`${name} (skipped: API unavailable)`, fn, timeout);
+}
+
+function itIfAnaf(name, fn, timeout) {
+  if (HAS_ANAF) {
+    return it(name, fn, timeout);
+  }
+  return it.skip(`${name} (skipped: ANAF API unavailable)`, fn, timeout);
+}
+
+beforeAll(async () => {
+  [HAS_API, HAS_ANAF] = await Promise.all([checkApiAvailability(), checkAnafAvailability()]);
+});
 
 describe('E2E: Full Scraping Pipeline', () => {
 
@@ -158,7 +195,7 @@ describe('E2E: Full Scraping Pipeline', () => {
   });
 
   describe('API Data Verification', () => {
-    itIfPeviitor('should query jobs by CIF and return valid data', async () => {
+    itIfApi('should query jobs by CIF and return valid data', async () => {
       const result = await querySOLR(TEST_CIF);
 
       if (result.numFound === 0) {
@@ -178,7 +215,7 @@ describe('E2E: Full Scraping Pipeline', () => {
       expect(job).toHaveProperty('location');
     }, 15000);
 
-    itIfPeviitor('should query company core by CIF', async () => {
+    itIfApi('should query company core by CIF', async () => {
       const result = await getCompanyByCif(TEST_CIF);
 
       expect(result).toBeDefined();

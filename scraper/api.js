@@ -1,22 +1,17 @@
 /**
- * Solr Database Module
- * 
- * PURPOSE: Provides interface to Solr database for storing and retrieving
- * job listings and company data. Solr is used as the primary data store
- * for the peviitor.ro job aggregation system.
- * 
+ * Peviitor API Module
+ *
+ * PURPOSE: Provides interface to Solr database via the peviitor API for
+ * storing and retrieving job listings and company data.
+ *
  * This module handles:
  * - Querying jobs by company CIF (via peviitor API)
  * - Querying/upserting company data (via peviitor API)
  * - Adding/updating (upserting) jobs (via peviitor API)
  * - Deleting jobs by CIF or URL (via peviitor API)
  * - URL validation and cleanup
- * 
- * All Solr operations go through the peviitor API — no direct Solr access.
- * 
- * Solr Cores:
- * - job: Stores individual job listings (via API)
- * - company: Stores company metadata (via API gateway)
+ *
+ * All operations go through the peviitor API — no direct Solr access.
  */
 
 import fetch from "node-fetch";

@@ -21,9 +21,9 @@ Proiectul automatizează colectarea zilnică a job-urilor ROPARDO din România, 
 
 ## Features
 
-- Extrage job-uri din [jobs.ropardo.ro](https://jobs.ropardo.ro/) (JSON API + ANOFM)
+- Extrage job-uri de pe [ropardo.ro/careers/](https://ropardo.ro/careers/) (HTML scraping cu cheerio) + ANOFM
 - Validează compania via ANAF (CUI, status activ/inactiv, adresă completă)
-- **Cache ANAF la 7 zile** — committed în repo, nu lovește demoANAF la fiecare scrape
+- **Cache ANAF la 7 zile** — nu lovește demoANAF la fiecare scrape
 - **Fallback la cache stale** dacă ANAF e indisponibil
 - Cross-validează cu Peviitor API
 - Stochează prin Peviitor API (job core + company core)

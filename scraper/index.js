@@ -6,11 +6,14 @@ import { validateAndGetCompany } from "./company.js";
 import { querySOLR, upsertJobs, upsertCompany, deleteJobByUrl } from "./api.js";
 import { generateJobsMarkdown } from "./markdown-generator.js";
 import companyConfig from "./config/company.js";
+import scraperConfig from "./config/scraper.js";
 
 const COMPANY_ID = companyConfig.id;
 
-const CAREERS_URL = "https://ropardo.ro/careers/";
-const JOBS_BASE = "https://jobs.ropardo.ro/job/";
+const CAREERS_URL = scraperConfig.careersUrl;
+const JOBS_BASE = scraperConfig.apiBase;
+
+const STUDENTS_URL = scraperConfig.studentsUrl || "https://ropardo.ro/careers/for-students/";
 
 const ANOFM_TIMEOUT = 10000;
 
@@ -134,8 +137,6 @@ async function fetchJobs() {
 // ============================================================================
 // STUDENT PROGRAMS — scrape from ropardo.ro/careers/for-students/
 // ============================================================================
-
-const STUDENTS_URL = "https://ropardo.ro/careers/for-students/";
 
 async function fetchStudentPrograms() {
   console.log("Fetching ROPARDO student programs...");
