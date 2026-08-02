@@ -28,28 +28,31 @@ job_seeker_ro_spider
 
 ```
 ├── scraper/
-│   ├── config/company.json     # Sursa unică de adevăr (CIF, brand, URL-uri, API)
-│   ├── config/company.js       # Loader ESM pentru scraper/config/company.json
-│   ├── config/scraper.json     # Config scraper (apiBase, careersUrl)
-│   ├── index.js                # Orchestrator principal
-│   ├── company.js              # Validare companie (ANAF + CUIFirma + Peviitor) cu cache 7 zile
-│   ├── anaf.js                 # Modul date companie (ANAF + CUIFirma fallback + search)
-│   ├── demoanaf.js             # CLI wrapper pentru anaf.js
-│   ├── api.js                  # Operații API Peviitor (query, upsert, delete, company)
-│   ├── job-validator.js        # Primitivă comună: validateByHead, validateByContent, validateByBrowser
-│   ├── validate-jobs.js        # Validator deep manual (content-aware)
-│   └── markdown-generator.js   # Generează docs/jobs.md după scrape
-├── ROBOTS.md                   # Analiză robots.txt și politici de scraping
+│   ├── config/
+│   │   ├── company.json     # Sursa unică de adevăr (CIF, brand, URL-uri, API)
+│   │   ├── company.js       # Loader ESM pentru scraper/config/company.json
+│   │   └── scraper.json     # Config scraper (apiBase, careersUrl)
+│   ├── index.js             # Orchestrator principal
+│   ├── company.js           # Validare companie (ANAF + CUIFirma + Peviitor) cu cache 7 zile
+│   ├── anaf.js              # Modul date companie (ANAF + CUIFirma fallback + search)
+│   ├── demoanaf.js          # CLI wrapper pentru anaf.js
+│   ├── api.js               # Operații API Peviitor (query, upsert, delete, company)
+│   ├── job-validator.js     # Primitivă comună: validateByHead, validateByContent, validateByBrowser
+│   ├── validate-jobs.js     # Validator deep manual (content-aware)
+│   └── markdown-generator.js # Generează docs/jobs.md după scrape
+├── ai/                      # Documentație pentru agenții AI (AGENTS.md, scheme, instrucțiuni)
 ├── tests/
 │   ├── unit/          # Teste unitare
 │   ├── integration/   # Teste de integrare (ANAF + Peviitor live)
 │   ├── e2e/           # Teste end-to-end (pipelin complet)
 │   └── consistency/   # Teste consistență repo GitHub
+├── docs/                    # Conținut GitHub Pages (jobs.md, company.json, test-results)
 └── .github/workflows/
-    ├── job-seeker-ro-spider.yml     # Rulează zilnic la 6 AM UTC
-    ├── automation-testing.yml       # Teste automate la fiecare push/PR
-    ├── job-deep-validate.yml        # Validare deep manuală (Playwright)
-    └── job-recovery-from-disaster.yml # Recuperare job-uri din docs/jobs.md
+    ├── job-seeker-ro-spider.yml           # Rulează zilnic la 6 AM UTC
+    ├── automation-testing.yml             # Teste automate la fiecare push/PR
+    ├── job-deep-validate.yml              # Validare deep manuală (Playwright)
+    ├── job-recovery-from-disaster.yml     # Recuperare job-uri din docs/jobs.md
+    └── automation-template-sync-check.yml # Verificare săptămânală sincronizare template EPAM
 ```
 
 ## API-uri folosite
