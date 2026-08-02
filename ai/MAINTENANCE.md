@@ -11,7 +11,7 @@ The Maintenance Agent keeps the scraper healthy, up-to-date, and bug-free. It mo
 Before any work, check open issues:
 
 ```bash
-gh issue list --repo sebiboga/epam-systems-international-srl-nodejs-scraper --state open
+gh issue list --repo sebiboga/ropardo-srl-nodejs-scraper --state open
 ```
 
 - Prioritize `critical` label issues first
@@ -59,7 +59,7 @@ Ensure docs match reality:
 - `ai/company-model.md` — schema must match `scraper/config/company.json`
 - `ai/job-model.md` — schema must match actual job documents
 - `docs/README.md` — project structure tree must include all directories
-- `docs/test-results/index.html` — branding must say "EPAM", not the old template
+- `docs/test-results/index.html` — branding must say "ROPARDO", not the old template
 
 ### 6. Run Full Test Suite
 

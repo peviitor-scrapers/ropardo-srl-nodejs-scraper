@@ -8,7 +8,7 @@ This repo is **derived from** the [epam-systems-international-srl-nodejs-scraper
 
 When making changes to this derived scraper:
 - **All company-specific identity lives in `scraper/config/company.json`** (id, brand, company, URLs, location). Read from `scraper/config/company.js` in Node code, or via `jq` in workflows. Never hardcode in source files.
-- **Only the API parsing logic in `scraper/index.js`** (`fetchJobsPage`, `parseApiJobs`) is ROPARDO-specific. The output shape (`mapToJobModel`, `transformJobsForSOLR`) must stay uniform across derived scrapers.
+- **Only the scraping logic in `scraper/index.js`** (`fetchJobs`, `parseJobs`) is ROPARDO-specific. The output shape (`mapToJobModel`, `transformJobsForSOLR`) must stay uniform across derived scrapers.
 
 ## Directory Structure
 ```
@@ -56,9 +56,9 @@ NEVER use paths outside the project (e.g. `C:\Users\...\AppData\Local\Temp\openc
 - Push after commit
 
 ### 3. Environment Variables
-- `.env.local` is loaded automatically at runtime via `dotenv` (see `package.json`) — never commit it
-- Solr access now uses the peviitor API (no direct SOLR_AUTH needed for most operations)
-- Only `ensure-company-core` and `validate-jobs` workflow steps still use `SOLR_AUTH` for direct curl access
+- `.env.local` is gitignored — never commit it (declared in `package.json` only as a loadable variable source; the scraper reads all auth from CI secrets via env)
+- All Solr access goes through the Peviitor API client (`scraper/api.js`) — no direct `SOLR_AUTH` usage anywhere
+- `SOLR_AUTH` was deleted from repo secrets (never used); only GitHub Actions auto-provisioned `GITHUB_TOKEN` remains
 - Consistency tests need `GITHUB_REPOSITORY` (format: `owner/repo`) and `GITHUB_TOKEN`
 
 ### 4. Testing
@@ -90,15 +90,14 @@ npm run test:consistency
 
 ### 7. Module Structure
 - `scraper/config/company.json` + `scraper/config/company.js` — single source of truth for company identity
-- `scraper/anaf.js` — core ANAF library (imported by company.js); retry logic: 3 retries, 2s exponential backoff
+- `scraper/anaf.js` — company data module: ANAF primary + CUIFirma fallback (via `getCompanyFromANAFWithFallback`); no retry logic
 - `scraper/markdown-generator.js` — generates `docs/jobs.md` after each scrape; called from index.js
-- `scraper/job-validator.js` — shared `validateByHead` + `validateByContent` used by both validator CLIs
+- `scraper/job-validator.js` — shared `validateByHead` + `validateByContent` + `validateByBrowser` used by both validator CLIs
 - `scraper/index.js` — main scraper orchestrator
 - `scraper/api.js` — API client
-- `scraper/anaf.js` — ANAF + CUIFirma fallback (company data operations)
 - `scraper/demoanaf.js` — CLI entry point for anaf.js
-- `tests/validate-ropardo-jobs.js` — CI validator (API-based, no direct SOLR_AUTH)
-- `validate-jobs.js` — manual deep validator (content-aware)
+- `tests/validate-ropardo-jobs.js` — CI validator (API-based via Peviitor API)
+- `scraper/validate-jobs.js` — manual deep validator (content-aware)
 
 ### 8. Caching Behavior
 - `tmp/company.json` — per-run scratch cache (gitignored)
@@ -115,4 +114,4 @@ Fields in company core (id = CIF):
 | `website` | `string` | yes | Array of URLs |
 | `career` | `string` | yes | Array of URLs |
 | `lastScraped` | `string` | no | `YYYY-MM-DD` |
-| `scraperFile` | `string` | no | GitHub workflow ref |
+| `scraperFile` | `string` | no | GitHub Actions workflow URL (not raw) |
