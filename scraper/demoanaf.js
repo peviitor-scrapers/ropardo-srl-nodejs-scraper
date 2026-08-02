@@ -4,14 +4,14 @@
  * CLI entry point for the Company Data module (ANAF + CUIScan + CUIFirma)
  * 
  * Usage:
- *   node company-data-cli.js search <brand>    - Search for companies
- *   node company-data-cli.js <cif>             - Get company details by CIF
+ *   node demoanaf.js search <brand>    - Search for companies
+ *   node demoanaf.js <cif>             - Get company details by CIF
  * 
- * The core library is in company-data.js — this file only provides
+ * The core library is in anaf.js — this file only provides
  * the standalone CLI interface.
  */
 
-import { getCompanyFromANAF, searchCompany } from "./company-data.js";
+import { getCompanyFromANAF, searchCompany } from "./anaf.js";
 import companyConfig from "./config/company.js";
 
 const args = process.argv.slice(2);

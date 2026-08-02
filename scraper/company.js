@@ -1,66 +1,36 @@
 /**
  * Company Module - Company Validation and Data Management
- * 
- * PURPOSE: Handles company data validation from ANAF, caches company information,
- * and validates companies against the Peviitor API. This module ensures the scraper
- * only processes legitimate, active companies registered in Romania.
+ *
+ * Handles company data validation from ANAF, caches company information,
+ * and validates companies against the Peviitor API.
  */
 
 import fetch from "node-fetch";
 import fs from "fs";
 import { querySOLR, deleteJobsByCIF } from "./api.js";
-import { getCompanyFromANAF } from "./company-data.js";
+import { getCompanyFromANAF } from "./anaf.js";
 import companyConfig from "./config/company.js";
 
 // ============================================================================
-// CONFIGURATION — derived from config/company.json
+// CONFIGURATION
 // ============================================================================
 
-// Peviitor API base URL for company validation
-const PEVIITOR_API_URL = "https://api.peviitor.ro/v1/firme/company/";
+const Peviitor_API_URL = "https://api.peviitor.ro/v1/company/";
 
-const COMPANY_ID = companyConfig.id;
-const COMPANY_BRAND = companyConfig.brand || null;
+const COMPANY_CIF = companyConfig.id;
+const COMPANY_BRAND = companyConfig.brand;
+const COMPANY_LEGAL_NAME = companyConfig.company;
 
-// Cache TTL — re-fetch from ANAF if cached data is older than this
 const CACHE_MAX_AGE_DAYS = 7;
-
-// ANAF raw data cache (per-run, for offline fallback)
-const ANAF_CACHE_PATH = "scraper/anaf-cache.json";
-
-// ============================================================================
-// COMPANY MODEL - Defines the expected schema for company data
-// ============================================================================
-
-/**
- * Company model field definitions for validation
- * Used to ensure data integrity and compliance with Peviitor schema
- */
-const COMPANY_MODEL_FIELDS = [
-  { name: "id", required: true, type: "string" },           // CIF/CUI as string
-  { name: "company", required: true, type: "string" },      // Official company name
-  { name: "brand", required: false, type: "string" },        // Marketing brand name
-  { name: "group", required: false, type: "string" },        // Corporate group
-  { name: "status", required: false, type: "string", allowed: ["activ", "suspendat", "inactiv", "radiat"] }, // Romanian business status
-  { name: "location", required: false, type: "array" },     // Office locations
-  { name: "website", required: false, type: "array" },       // Company website URLs
-  { name: "career", required: false, type: "array" },       // Career page URLs
-  { name: "lastScraped", required: false, type: "string" },  // Last scrape timestamp
-  { name: "scraperFile", required: false, type: "string" }   // Link to scraper source
-];
+const ROOT_CACHE_PATH = "company.json";
+const TMP_CACHE_PATH = "tmp/company.json";
 
 // ============================================================================
-// PEVIITOR API - External validation
+// PEVIITOR API
 // ============================================================================
 
-/**
- * Fetches company data from Peviitor API
- * Used for cross-validation with Peviitor's existing company database
- * @param {string} companyName - Name to search for
- * @returns {Promise<Object|null>} - Company data or null if not found
- */
 async function getCompanyFromPeviitor(companyName) {
-  const url = `${PEVIITOR_API_URL}?name=${encodeURIComponent(companyName)}`;
+  const url = `${Peviitor_API_URL}?name=${encodeURIComponent(companyName)}`;
   const res = await fetch(url, {
     headers: {
       origin: "https://peviitor.ro",
@@ -68,173 +38,121 @@ async function getCompanyFromPeviitor(companyName) {
       "User-Agent": "job_seeker_ro_spider"
     }
   });
-  
+
   if (!res.ok) {
     throw new Error(`Peviitor API error: ${res.status}`);
   }
-  
+
   const data = await res.json();
-  if (!data.success) {
-    throw new Error(`Peviitor API failed: ${JSON.stringify(data)}`);
-  }
-  return data.data?.[0] || null;
+  return data.companies?.[0] || null;
 }
 
 // ============================================================================
-// DATA VALIDATION
+// DATA PERSISTENCE
 // ============================================================================
 
-/**
- * Validates company data against the COMPANY_MODEL schema
- * Checks for required fields, correct types, and allowed values
- * @param {Object} data - Company data to validate
- * @returns {boolean} - True if valid, false otherwise
- */
-function validateCompanyModel(data) {
-  console.log("\n=== Company Model Validation ===\n");
-  
-  const errors = [];
-  
-  // Check each field in the model
-  for (const field of COMPANY_MODEL_FIELDS) {
-    const value = data[field.name];
-    
-    // Check required fields
-    if (field.required && (value === undefined || value === null || value === "")) {
-      errors.push(`Missing required field: ${field.name}`);
-      continue;
-    }
-    
-    // Validate field types
-    if (value !== undefined && value !== null) {
-      if (field.type === "string" && typeof value !== "string") {
-        errors.push(`Field ${field.name} should be string, got ${typeof value}`);
-      }
-      if (field.type === "array" && !Array.isArray(value)) {
-        errors.push(`Field ${field.name} should be array, got ${typeof value}`);
-      }
-      // Validate allowed values for enum fields
-      if (field.allowed && !field.allowed.includes(value)) {
-        errors.push(`Field ${field.name} has invalid value "${value}". Allowed: ${field.allowed.join(", ")}`);
-      }
-    }
-  }
-  
-  // Warn about extra fields not in the model
-  const allowedFields = COMPANY_MODEL_FIELDS.map(f => f.name);
-  const extraFields = Object.keys(data).filter(k => !allowedFields.includes(k));
-  if (extraFields.length > 0) {
-    console.log(`Note: Extra fields in Peviitor (not in model): ${extraFields.join(", ")}`);
-  }
-  
-  // Report results
-  if (errors.length > 0) {
-    console.log("ERRORS:");
-    errors.forEach(e => console.log(`  - ${e}`));
-    return false;
-  }
-  
-  console.log("All required fields present and valid!");
-  return true;
-}
-
-// ============================================================================
-// DATA PERSISTENCE - Caching company data
-// ============================================================================
-
-/**
- * Saves ANAF raw data for offline fallback.
- * Updates lastScraped in config/company.json (the single source of truth).
- * @param {Object} anafData - Company data from ANAF
- * @param {Object} peviitorData - Company data from Peviitor (optional)
- */
 function saveCompanyData(anafData, peviitorData) {
-  // Save ANAF raw data for offline fallback
-  const anafCache = {
+  const companyData = {
     validatedAt: new Date().toISOString(),
+    source: "ANAF",
+    brand: COMPANY_BRAND,
     anaf: anafData,
-    peviitor: peviitorData
+    peviitor: peviitorData,
+    summary: {
+      company: anafData?.name || null,
+      cif: anafData?.cui?.toString() || null,
+      active: !anafData?.inactive,
+      inactiveSince: anafData?.inactiveSince || null,
+      address: anafData?.address || null
+    }
   };
-  fs.mkdirSync("scraper", { recursive: true });
-  fs.writeFileSync(ANAF_CACHE_PATH, JSON.stringify(anafCache, null, 2), "utf-8");
-  console.log(`✅ Saved ANAF cache to ${ANAF_CACHE_PATH}`);
 
-  // Update lastScraped in config/company.json (single source of truth)
-  const configPath = "scraper/config/company.json";
-  const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  config.lastScraped = new Date().toISOString().split("T")[0];
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
-  console.log(`✅ Updated lastScraped in ${configPath}`);
+  const json = JSON.stringify(companyData, null, 2);
+
+  fs.mkdirSync("tmp", { recursive: true });
+  fs.writeFileSync(TMP_CACHE_PATH, json, "utf-8");
+  console.log(`\n✅ Saved company data to ${TMP_CACHE_PATH}`);
+
+  fs.writeFileSync(ROOT_CACHE_PATH, json, "utf-8");
+  console.log(`✅ Updated root cache ${ROOT_CACHE_PATH}\n`);
+
+  return companyData;
 }
 
-/**
- * Loads ANAF raw cache for offline fallback.
- */
-function loadAnafCache() {
-  if (!fs.existsSync(ANAF_CACHE_PATH)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(ANAF_CACHE_PATH, "utf-8"));
-  } catch (e) {
-    console.log(`Warning: Could not parse ${ANAF_CACHE_PATH}`);
-    return null;
-  }
+function isValidCache(data) {
+  return Boolean(data?.anaf?.cui && data?.anaf?.name);
 }
 
-/**
- * Checks whether the config lastScraped is still fresh (within CACHE_MAX_AGE_DAYS).
- */
-function isCacheFresh() {
-  if (!companyConfig.lastScraped) return false;
-  const ageMs = Date.now() - new Date(companyConfig.lastScraped).getTime();
+function isCacheFresh(data) {
+  if (!data?.validatedAt) return false;
+  const ageMs = Date.now() - new Date(data.validatedAt).getTime();
   const ageDays = ageMs / (1000 * 60 * 60 * 24);
   return ageDays < CACHE_MAX_AGE_DAYS;
 }
 
+function loadCachedCompanyData() {
+  for (const cachePath of [TMP_CACHE_PATH, ROOT_CACHE_PATH]) {
+    if (!fs.existsSync(cachePath)) continue;
+    try {
+      const data = JSON.parse(fs.readFileSync(cachePath, "utf-8"));
+      if (!isValidCache(data)) continue;
+      if (isCacheFresh(data)) {
+        console.log(`Found fresh cached company data in ${cachePath}`);
+        return data;
+      }
+      console.log(`Found stale cached company data in ${cachePath} (older than ${CACHE_MAX_AGE_DAYS} days)`);
+      return { ...data, _stale: true };
+    } catch (e) {
+      console.log(`Warning: Could not parse ${cachePath}`);
+    }
+  }
+  return null;
+}
+
 // ============================================================================
-// COMPANY DATA RETRIEVAL - Main entry point for getting company info
+// COMPANY DATA RETRIEVAL
 // ============================================================================
 
-/**
- * Gets company data, preferring cache over live API calls.
- * CIF and brand are read from config/company.json.
- * Cache order: config/company.json (lastScraped) → ANAF live.
- * Stale config is used as fallback if ANAF is unreachable.
- * @returns {Promise<Object>} - Company data with company name, CIF, and active status
- */
 export async function getCompanyData() {
-  // Fresh cache → use it, skip ANAF
-  if (isCacheFresh() && companyConfig.id) {
-    console.log(`Using cached company data for CIF: ${companyConfig.id}`);
-    console.log(`Cached name: ${companyConfig.company}`);
-    console.log(`Cached status: ${companyConfig.status}`);
+  const cachedData = loadCachedCompanyData();
 
-    const company = companyConfig.company.toUpperCase();
-    const cif = String(companyConfig.id);
-    const active = companyConfig.status === "activ";
+  if (cachedData && !cachedData._stale && cachedData.summary?.cif) {
+    console.log(`Using cached company data for CIF: ${cachedData.summary.cif}`);
+    const anafData = cachedData.anaf;
 
-    // Load raw ANAF data for fallback
-    const anafCache = loadAnafCache();
-    const anafData = anafCache?.anaf || null;
+    console.log(`Cached name: ${anafData.name}`);
+    console.log(`Cached status: ${anafData.inactive ? "INACTIVE" : "ACTIVE"}`);
 
-    return { company, cif, active, anafData };
+    return {
+      company: anafData.name.toUpperCase(),
+      cif: anafData.cui.toString(),
+      active: !anafData.inactive,
+      anafData
+    };
   }
 
-  // Stale or missing cache → try ANAF, fall back to stale cache if ANAF fails
-  console.log(`Fetching fresh company data from ANAF for CIF: ${COMPANY_ID}`);
+  console.log(`Fetching fresh company data from ANAF for CIF: ${COMPANY_CIF}`);
   let anafData;
   try {
-    anafData = await getCompanyFromANAF(COMPANY_ID);
+    anafData = await getCompanyFromANAF(COMPANY_CIF);
   } catch (err) {
-    if (companyConfig.lastScraped) {
-      console.log(`⚠️ ANAF unreachable (${err.message}) — falling back to stale config`);
+    if (cachedData?.anaf) {
+      console.log(`⚠️ ANAF unreachable (${err.message}) — falling back to cached data`);
+      const a = cachedData.anaf;
       return {
-        company: companyConfig.company.toUpperCase(),
-        cif: String(companyConfig.id),
-        active: companyConfig.status === "activ",
-        anafData: null
+        company: a.name.toUpperCase(),
+        cif: a.cui.toString(),
+        active: !a.inactive,
+        anafData: a
       };
     }
-    throw err;
+    console.log(`⚠️ ANAF unreachable (${err.message}) — no cache available, proceeding with company config`);
+    return {
+      company: COMPANY_LEGAL_NAME,
+      cif: COMPANY_CIF,
+      active: true,
+      anafData: null
+    };
   }
 
   if (!anafData) {
@@ -245,55 +163,42 @@ export async function getCompanyData() {
   }
 
   console.log(`ANAF returned name: ${anafData.name}`);
-  console.log(`ANAF returned CUI: ${anafData.cui}`);
   console.log(`ANAF status: ${anafData.inactive ? "INACTIVE" : "ACTIVE"}`);
 
-  const company = anafData.name.toUpperCase();
-  const cif = anafData.cui.toString();
-  const active = !anafData.inactive;
-
-  return { company, cif, active, anafData };
+  return {
+    company: anafData.name.toUpperCase(),
+    cif: anafData.cui.toString(),
+    active: !anafData.inactive,
+    anafData
+  };
 }
 
 // ============================================================================
-// COMPANY VALIDATION WORKFLOW - Orchestrates validation steps
+// COMPANY VALIDATION WORKFLOW
 // ============================================================================
 
-/**
- * Complete company validation workflow:
- * 1. Validate company exists in ANAF (active)
- * 2. Check existing jobs in SOLR
- * 3. Cross-validate with Peviitor API
- * 4. Cache data for offline use
- * 5. Delete SOLR jobs if company is inactive
- * 
- * @returns {Promise<Object>} - Validation result with status and job count
- */
 export async function validateAndGetCompany() {
   console.log("=== Step 1: Validate company via ANAF ===\n");
-  
-  // Get company data from ANAF (or cache)
+
   const { company, cif, active, anafData } = await getCompanyData();
-  
-  // Check how many jobs already exist in SOLR for this company
+
   console.log("\n=== Step 2: Check existing jobs in SOLR ===\n");
   const solrResult = await querySOLR(cif);
   console.log(`Jobs found in SOLR for CIF ${cif}: ${solrResult.numFound}`);
-  
-  // Cross-validate with Peviitor
+
   console.log("\n=== Step 3: Validate via Peviitor ===\n");
   let peviitorData = null;
   try {
-    peviitorData = await getCompanyFromPeviitor(companyConfig.company);
+    peviitorData = await getCompanyFromPeviitor(COMPANY_BRAND);
     console.log("Peviitor data fetched successfully");
   } catch (e) {
     console.log("Peviitor API error:", e.message);
   }
-  
-  // Save company data to cache
-  saveCompanyData(anafData, peviitorData);
-  
-  // If company is inactive, remove their jobs from SOLR
+
+  if (anafData) {
+    saveCompanyData(anafData, peviitorData);
+  }
+
   if (!active) {
     console.log("\n⚠️ Company is INACTIVE in ANAF - deleting jobs from SOLR and stopping");
     if (solrResult.numFound > 0) {
@@ -301,37 +206,11 @@ export async function validateAndGetCompany() {
     }
     return { status: "inactive", company, cif, existingJobsCount: solrResult.numFound };
   }
-  
-  const address = anafData?.headquartersAddress?.locality || anafData?.address || "";
-  
+
+  const address = anafData?.address || "";
+
   console.log(`\n✅ Company validated: ${company}, CIF: ${cif}`);
   console.log("Ready to scrape jobs...\n");
-  
-  return { status: "activ", company, cif, existingJobsCount: solrResult.numFound, address, anafData };
-}
 
-// ============================================================================
-// STANDALONE MODE - Run company.js directly for testing
-// ============================================================================
-
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("company.js")) {
-  console.log("=== Running company.js independently ===\n");
-  
-  const { company, cif, active } = await getCompanyData();
-  console.log(`\nResult: company=${company}, cif=${cif}, active=${active}`);
-  
-  console.log("\n=== Peviitor Validation Test ===\n");
-  
-  try {
-    const peviitorData = await getCompanyFromPeviitor(company);
-    console.log("Peviitor Data:");
-    console.log(JSON.stringify(peviitorData, null, 2));
-    validateCompanyModel(peviitorData);
-  } catch (e) {
-    console.log("Peviitor API error:", e.message);
-  }
-  
-  const result = await validateAndGetCompany();
-  
-  console.log("\nResult:", result);
+  return { status: "active", company, cif, existingJobsCount: solrResult.numFound, address, anafData };
 }

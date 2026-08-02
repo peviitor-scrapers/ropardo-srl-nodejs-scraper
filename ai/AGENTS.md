@@ -95,7 +95,8 @@ npm run test:consistency
 - `scraper/job-validator.js` — shared `validateByHead` + `validateByContent` used by both validator CLIs
 - `scraper/index.js` — main scraper orchestrator
 - `scraper/api.js` — API client
-- `scraper/company-data.js` / `scraper/company-data-cli.js` — company data operations
+- `scraper/anaf.js` — ANAF + CUIFirma fallback (company data operations)
+- `scraper/demoanaf.js` — CLI entry point for anaf.js
 - `tests/validate-ropardo-jobs.js` — CI validator (API-based, no direct SOLR_AUTH)
 - `validate-jobs.js` — manual deep validator (content-aware)
 

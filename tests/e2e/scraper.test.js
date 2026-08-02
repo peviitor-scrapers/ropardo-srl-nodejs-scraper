@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import fetch from 'node-fetch';
 import { normalizeTitle, normalizeLocation, normalizeRemote, normalizeWorkmode, parseJobs, fetchJobs } from '../../scraper/index.js';
-import { searchCompany, getCompanyFromANAF } from '../../scraper/company-data.js';
+import { searchCompany, getCompanyFromANAF } from '../../scraper/anaf.js';
 import { validateAndGetCompany } from '../../scraper/company.js';
 import { querySOLR, getCompanyByCif } from '../../scraper/api.js';
 

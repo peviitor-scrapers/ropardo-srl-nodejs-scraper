@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { searchCompany, getCompanyFromANAF, getCompanyFromANAFWithFallback } from '../../scraper/company-data.js';
+import { searchCompany, getCompanyFromANAF, getCompanyFromANAFWithFallback } from '../../scraper/anaf.js';
 import { validateAndGetCompany } from '../../scraper/company.js';
 import { querySOLR, getCompanyByCif } from '../../scraper/api.js';
 

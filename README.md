@@ -1,6 +1,6 @@
 [![Oportunitati SI Cariere](https://github.com/sebiboga/ropardo-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml/badge.svg)](https://github.com/sebiboga/ropardo-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml)
 [![Automation Tests](https://github.com/sebiboga/ropardo-srl-nodejs-scraper/actions/workflows/automation-testing.yml/badge.svg)](https://github.com/sebiboga/ropardo-srl-nodejs-scraper/actions/workflows/automation-testing.yml)
-[![Version](https://img.shields.io/github/package-json/v/sebiboga/ropardo-srl-nodejs-scraper?label=version&color=blue)](ai/CHANGELOG.md)
+[![Version](https://img.shields.io/github/package-json/v/sebiboga/ropardo-srl-nodejs-scraper?label=version&color=blue)](CHANGELOG.md)
 [![Test Results](https://img.shields.io/badge/test--results-HTML-9b59b6)](https://sebiboga.github.io/ropardo-srl-nodejs-scraper/test-results/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![JavaScript](https://img.shields.io/badge/javascript-ESM-F7DF1E?logo=javascript&logoColor=black)](https://ecma-international.org/)
@@ -27,7 +27,7 @@ Proiectul automatizează colectarea zilnică a job-urilor ROPARDO din România, 
 - **Fallback la cache stale** dacă ANAF e indisponibil
 - Cross-validează cu Peviitor API
 - Stochează prin Peviitor API (job core + company core)
-- Generează `ai/jobs.md` automat — accesibil pe GitHub Pages
+- Generează `docs/jobs.md` automat — accesibil pe GitHub Pages
 - **Identitate companie într-un singur fișier** (`scraper/config/company.json`)
 - GitHub Actions: scrape zilnic + testare automată (unit, integration, e2e, consistency)
 - Se identifică prin User-Agent: `job_seeker_ro_spider`

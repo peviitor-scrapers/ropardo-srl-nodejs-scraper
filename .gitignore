@@ -37,12 +37,12 @@ temp/
 
 # Job data files (should not be committed)
 jobs.json
-jobs_ropardo_ro.json
+jobs_epam_ro.json
 jobs_existing.json
 jobs_valid.json
 company_data.json
 delete.json
-ropardo_response.json
+epam_response.json
 
 # Credentials (NEVER commit these)
 *.pem

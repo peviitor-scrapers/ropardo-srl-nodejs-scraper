@@ -16,6 +16,40 @@ on:
         default: 'true'
 
 jobs:
+  create-autoheal-issue:
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: [ensure-company-core, Automation-Tests, validate-jobs]
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create auto-heal issue
+        run: |
+          gh label create "auto-heal" --color "d73a4a" --description "Auto-heal issue for opencode" 2>/dev/null || true
+          BODY="Workflow [**${{ github.workflow }}**](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) failed.
+
+          ## Context
+          - **Repository:** ${{ github.repository }}
+          - **Run URL:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Branch:** ${{ github.ref }}
+          - **Commit:** ${{ github.sha }}
+          - **Trigger:** ${{ github.event_name }}
+
+          ## Instructions for opencode
+          1. Clone the repo and check out this branch.
+          2. Investigate the run logs (linked above).
+          3. Fix whatever caused the failure.
+          4. Commit and push the fix.
+          5. Close this issue — the next push will re-trigger the workflow."
+
+          gh issue create \
+            --title "Auto-heal: ${{ github.repository }} workflow failed $(date -u +%Y-%m-%d)" \
+            --label "auto-heal" \
+            --body "$BODY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   validate-jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
@@ -52,72 +86,43 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Ensure company exists in company core
-        env:
-          SOLR_AUTH: ${{ secrets.SOLR_AUTH }}
         run: |
-          # Load company identity from single source of truth
-          ID=$(jq -r '.id' scraper/config/company.json)
-          COMPANY=$(jq -r '.company' scraper/config/company.json)
+          TODAY=$(date -u +%Y-%m-%d)
+          CIF=$(jq -r '.id' scraper/config/company.json)
+          LEGAL_NAME=$(jq -r '.company' scraper/config/company.json)
           BRAND=$(jq -r '.brand' scraper/config/company.json)
           WEBSITE=$(jq -r '.website[0]' scraper/config/company.json)
           CAREER=$(jq -r '.career[0]' scraper/config/company.json)
-          LOCATION=$(jq -r '.location[0]' scraper/config/company.json)
+          DEFAULT_LOC=$(jq -r '.location[0]' scraper/config/company.json)
           SCRAPER_FILE=$(jq -r '.scraperFile' scraper/config/company.json)
-          TODAY=$(date -u +%Y-%m-%d)
 
-          # Build expected fields list
-          EXPECTED_FIELDS='["company","brand","status","location","website","career","lastScraped","scraperFile"]'
+          jq -n \
+            --arg id "$CIF" \
+            --arg company "$LEGAL_NAME" \
+            --arg brand "$BRAND" \
+            --arg website "$WEBSITE" \
+            --arg career "$CAREER" \
+            --arg loc "$DEFAULT_LOC" \
+            --arg today "$TODAY" \
+            --arg scraperFile "$SCRAPER_FILE" \
+            '{id:$id,company:$company,brand:$brand,status:"activ",location:[$loc],website:[$website],career:[$career],lastScraped:$today,scraperFile:$scraperFile}' \
+            > company_data.json
 
-          # Fetch existing doc
-          EXISTING_DOC=$(curl -s --user "${SOLR_AUTH}" \
-            "https://solr.peviitor.ro/solr/company/select?q=id:${ID}&rows=1" | jq '.response.docs[0] // empty')
+          echo "Upserting ${BRAND} (CIF: ${CIF}) via peviitor API..."
+          curl -s -X PUT \
+            "https://api.peviitor.ro/v1/firme/company/add/" \
+            -H "Content-Type: application/json" \
+            --data-binary @company_data.json
 
-          if [ -z "$EXISTING_DOC" ]; then
-            echo "${BRAND} not found in company core - adding..."
-            NEEDS_PUSH=true
-          else
-            # Check if any expected field is missing
-            MISSING=$(echo "$EXISTING_DOC" | jq --argjson fields "$EXPECTED_FIELDS" --argjson doc "$EXISTING_DOC" '
-              $fields | map(select(. as $f | $doc | has($f) | not))')
-            NEEDS_PUSH=false
-            if [ "$MISSING" != "[]" ]; then
-              echo "${BRAND} missing fields: ${MISSING} - updating..."
-              NEEDS_PUSH=true
-            else
-              echo "${BRAND} has all expected fields - no update needed"
-            fi
-          fi
+          FINAL=$(curl -s \
+            "https://api.peviitor.ro/v1/firme/company/?cif=${CIF}" | jq '.total')
 
-          if [ "$NEEDS_PUSH" = true ]; then
-            jq -n \
-              --arg id "$ID" \
-              --arg company "$COMPANY" \
-              --arg brand "$BRAND" \
-              --arg website "$WEBSITE" \
-              --arg career "$CAREER" \
-              --arg loc "$LOCATION" \
-              --arg today "$TODAY" \
-              --arg scraperFile "$SCRAPER_FILE" \
-              '[{id:$id,company:$company,brand:$brand,status:"activ",location:[$loc],website:[$website],career:[$career],lastScraped:$today,scraperFile:$scraperFile}]' \
-              > company_data.json
-
-            echo "Upserting ${BRAND} to company core..."
-            curl -s --user "${SOLR_AUTH}" \
-              "https://solr.peviitor.ro/solr/company/update/json?commit=true" \
-              -X POST \
-              -H "Content-Type: application/json" \
-              --data-binary @company_data.json
-          fi
-
-          FINAL=$(curl -s --user "${SOLR_AUTH}" \
-            "https://solr.peviitor.ro/solr/company/select?q=id:${ID}&rows=1" | jq '.response.numFound')
-
-          echo "${BRAND} count after check: $FINAL"
+          echo "${BRAND} count after upsert: $FINAL"
 
           if [ "$FINAL" -ge "1" ]; then
-            echo "✅ SUCCESS: ${BRAND} is in company core"
+            echo "SUCCESS: ${BRAND} is in company core"
           else
-            echo "❌ FAILED: ${BRAND} still not in company core"
+            echo "FAILED: ${BRAND} still not in company core"
             exit 1
           fi
 

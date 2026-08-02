@@ -48,11 +48,11 @@ const CACHED_DATA = {
   inactive: false
 };
 
-describe('company-data.js', () => {
+describe('anaf.js', () => {
   let companyData;
 
   beforeAll(async () => {
-    companyData = await import('../../scraper/company-data.js');
+    companyData = await import('../../scraper/anaf.js');
   });
 
   beforeEach(() => {
