@@ -10,11 +10,11 @@
 | Location | Municipiul Sibiu, Sibiu |
 | Website | [https://www.ropardo.ro](https://www.ropardo.ro) |
 | Careers | [https://jobs.ropardo.ro](https://jobs.ropardo.ro), [https://ropardo.ro/careers/for-students/](https://ropardo.ro/careers/for-students/) |
-| Last Scraped | 2026-09-04 |
+| Last Scraped | 2026-09-05 |
 
 ## Current Job Listings (8)
 
-_Generated: 2026-09-04T10:06:02.471Z_
+_Generated: 2026-09-05T09:35:25.675Z_
 
 ### Junior BI Developer: Transforming Data into Business Insights - open for students
 
